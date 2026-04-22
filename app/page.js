@@ -24,10 +24,16 @@ const CATEGORIES = ["All","Culinary Delights","Artistic Pursuits","Attire Affair
 //  STORAGE HELPERS  (unchanged)
 // ─────────────────────────────────────────────────────────────────
 const DB = {
-  async getUser(email) {
-    try { const r = await window.storage.get(`user:${email}`); return r ? JSON.parse(r.value) : null; } catch { return null; }
-  },
-  async saveUser(user) { await window.storage.set(`user:${user.email}`, JSON.stringify(user)); },
+// ✅ NEW (works in real browsers)
+async getUser(email) {
+  try {
+    const r = localStorage.getItem(`user:${email}`);
+    return r ? JSON.parse(r) : null;
+  } catch { return null; }
+},
+async saveUser(user) {
+  localStorage.setItem(`user:${user.email}`, JSON.stringify(user));
+},
   async getCommunityIdeas() {
     try {
       const keys = await window.storage.list("idea:");
