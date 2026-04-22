@@ -852,8 +852,8 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
 
       <FloralBg/>
       <Loader visible={loading} items={items}/>
-      <Toast msg={toast.msg} visible={toast.visible}/>
-
+  <Toast msg={toast.msg} visible={toast.visible}/>
+      <Sparkles trigger={sparkTrigger}/>
       {authModal&&(
         <AuthModal
           mode={authModal}
