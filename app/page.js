@@ -875,7 +875,7 @@ try {
 } catch (e) {
   console.error("Parsing failed, raw text:", text);
   console.error(e);
-  showToast("Alas... something went awry. Try again.");
+  showToast("Alas… something went awry 🥀 Try again.");
 }
     setLoading(false);
   },[items,filters,user]);
