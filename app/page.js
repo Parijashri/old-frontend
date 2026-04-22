@@ -838,19 +838,14 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
 {"ideas":[{"title":"string","category":"Culinary Delights|Artistic Pursuits|Attire Affairs|Tokens of Affection|Curious Possessions","emoji":"single emoji","difficulty":"Effortless|A gentle endeavour|Suspiciously easy|Requires feelings|Meditative","time":"e.g. 15 mins","genz_desc":"1-2 sentences Gen Z + Bridgerton tone, witty and warm","uses_items":["only items from the user's exact list"],"optional_items":[],"steps":["step 1","step 2","step 3","step 4"]}]}`;
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ai/generate`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ai`, {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
-          messages:[{role:"user",content:prompt}]
-        })
+        body: JSON.stringify({ prompt })
       });
       const data = await res.json();
-      const text = data.content?.[0]?.text||"";
-      const clean = text.replace(/```json|```/g,"").trim();
-      const parsed = JSON.parse(clean);
+      const data = await res.json();
+const text = data.result;
       const ideas = (parsed.ideas||[]).map(i=>({
         ...i,
         id:`ai_${Date.now()}_${Math.random().toString(36).slice(2)}`,
@@ -864,10 +859,28 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
       }
       setPage("results");
       setSparkTrigger(t=>t+1);
-    } catch(e){
+    }
+    let ideas = [];
+
+try {
+  const clean = text.replace(/```json|```/g,"").trim();
+  const parsed = JSON.parse(clean);
+
+  ideas = (parsed.ideas || []).map(i => ({
+    ...i,
+    id: `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    source: "ai",
+  }));
+
+} catch (e) {
+  console.error("Parsing failed, raw text:", text);
+}
+catch(e){
       console.error(e);
       showToast("Alas… something went awry 🥀 Try again.");
-    }
+    }} catch (err) {
+  console.error(err);
+}
     setLoading(false);
   },[items,filters,user]);
 
