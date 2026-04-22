@@ -779,6 +779,7 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
         const h=await DB.getHistory(user.id);setHistList(h);
       }
       setPage("results");
+      setSparkTrigger(t=>t+1);
     } catch(e){
       console.error(e);
       showToast("Alas… something went awry 🥀 Try again.");
