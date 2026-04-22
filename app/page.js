@@ -21,85 +21,91 @@ const FILTERS_DEF = [
 const CATEGORIES = ["All","Culinary Delights","Artistic Pursuits","Attire Affairs","Tokens of Affection","Curious Possessions"];
 
 // ─────────────────────────────────────────────────────────────────
-//  STORAGE HELPERS  (unchanged)
+//  LOCALSTORAGE HELPERS  (replaces window.storage — works in browsers)
 // ─────────────────────────────────────────────────────────────────
-const DB = {
-// ✅ NEW (works in real browsers)
-async getUser(email) {
-  try {
-    const r = localStorage.getItem(`user:${email}`);
-    return r ? JSON.parse(r) : null;
-  } catch { return null; }
-},
-async saveUser(user) {
-  localStorage.setItem(`user:${user.email}`, JSON.stringify(user));
-},
-  async getCommunityIdeas() {
+const ls = {
+  get: (key) => {
+    if (typeof window === 'undefined') return null;
+    try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; }
+  },
+  set: (key, value) => {
+    if (typeof window === 'undefined') return;
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  },
+  del: (key) => {
+    if (typeof window === 'undefined') return;
+    try { localStorage.removeItem(key); } catch {}
+  },
+  keys: (prefix) => {
+    if (typeof window === 'undefined') return [];
     try {
-      const keys = await window.storage.list("idea:");
-      const ideas = [];
-      for (const k of (keys.keys||[])) {
-        try { const r = await window.storage.get(k, true); if(r) ideas.push(JSON.parse(r.value)); } catch {}
-      }
-      return ideas;
+      return Object.keys(localStorage).filter(k => k.startsWith(prefix));
     } catch { return []; }
   },
-  async saveIdea(idea) { await window.storage.set(`idea:${idea.id}`, JSON.stringify(idea), true); },
-  async likeIdea(ideaId, userId) {
-    try {
-      const r = await window.storage.get(`idea:${ideaId}`, true);
-      if (!r) return null;
-      const idea = JSON.parse(r.value);
-      const likers = idea.likers || [];
-      const already = likers.includes(userId);
-      idea.likers = already ? likers.filter(x=>x!==userId) : [...likers, userId];
-      idea.likes = idea.likers.length;
-      await window.storage.set(`idea:${ideaId}`, JSON.stringify(idea), true);
-      return { liked: !already, likes: idea.likes, likers: idea.likers };
-    } catch { return null; }
+};
+
+const DB = {
+  getUser(email) {
+    return ls.get(`user:${email}`);
   },
-  async getSaved(userId) {
-    try { const r = await window.storage.get(`saved:${userId}`); return r ? JSON.parse(r.value) : []; } catch { return []; }
+  saveUser(user) {
+    ls.set(`user:${user.email}`, user);
   },
-  async toggleSave(userId, idea) {
-    const saved = await DB.getSaved(userId);
+  getCommunityIdeas() {
+    const keys = ls.keys("idea:");
+    return keys.map(k => ls.get(k)).filter(Boolean);
+  },
+  saveIdea(idea) {
+    ls.set(`idea:${idea.id}`, idea);
+  },
+  likeIdea(ideaId, userId) {
+    const idea = ls.get(`idea:${ideaId}`);
+    if (!idea) return null;
+    const likers = idea.likers || [];
+    const already = likers.includes(userId);
+    idea.likers = already ? likers.filter(x => x !== userId) : [...likers, userId];
+    idea.likes = idea.likers.length;
+    ls.set(`idea:${ideaId}`, idea);
+    return { liked: !already, likes: idea.likes, likers: idea.likers };
+  },
+  getSaved(userId) {
+    return ls.get(`saved:${userId}`) || [];
+  },
+  toggleSave(userId, idea) {
+    const saved = DB.getSaved(userId);
     const exists = saved.find(x => x.id === idea.id);
     const updated = exists ? saved.filter(x => x.id !== idea.id) : [...saved, idea];
-    await window.storage.set(`saved:${userId}`, JSON.stringify(updated));
+    ls.set(`saved:${userId}`, updated);
     return { saved: !exists, list: updated };
   },
-  async addHistory(userId, items, count) {
-    try {
-      const r = await window.storage.get(`hist:${userId}`);
-      const hist = r ? JSON.parse(r.value) : [];
-      hist.unshift({ items, count, ts: Date.now() });
-      await window.storage.set(`hist:${userId}`, JSON.stringify(hist.slice(0,20)));
-    } catch {}
+  addHistory(userId, items, count) {
+    const hist = ls.get(`hist:${userId}`) || [];
+    hist.unshift({ items, count, ts: Date.now() });
+    ls.set(`hist:${userId}`, hist.slice(0, 20));
   },
-  async getHistory(userId) {
-    try { const r = await window.storage.get(`hist:${userId}`); return r ? JSON.parse(r.value) : []; } catch { return []; }
+  getHistory(userId) {
+    return ls.get(`hist:${userId}`) || [];
   },
-  async getPending() {
-    try {
-      const keys = await window.storage.list("pending:");
-      const ideas = [];
-      for (const k of (keys.keys||[])) {
-        try { const r = await window.storage.get(k); if(r) ideas.push(JSON.parse(r.value)); } catch {}
-      }
-      return ideas;
-    } catch { return []; }
+  getPending() {
+    const keys = ls.keys("pending:");
+    return keys.map(k => ls.get(k)).filter(Boolean);
   },
-  async submitForReview(idea) { await window.storage.set(`pending:${idea.id}`, JSON.stringify(idea)); },
-  async approveIdea(idea) {
-    try { await window.storage.delete(`pending:${idea.id}`); } catch {}
-    idea.status = "approved";
-    await DB.saveIdea(idea);
+  submitForReview(idea) {
+    ls.set(`pending:${idea.id}`, idea);
   },
-  async rejectIdea(ideaId) { try { await window.storage.delete(`pending:${ideaId}`); } catch {} },
+  approveIdea(idea) {
+    ls.del(`pending:${idea.id}`);
+    const approved = { ...idea, status: "approved" };
+    DB.saveIdea(approved);
+    return approved;
+  },
+  rejectIdea(ideaId) {
+    ls.del(`pending:${ideaId}`);
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────
-//  MATCHING LOGIC  (unchanged)
+//  MATCHING LOGIC
 // ─────────────────────────────────────────────────────────────────
 function matchScore(userItems, idea) {
   const req = (idea.required_items || idea.uses_items || []).map(x=>x.toLowerCase().trim());
@@ -142,7 +148,6 @@ const inpStyle = {
   boxSizing:"border-box", letterSpacing:".2px",
 };
 
-// ─── UPGRADED BACKGROUND ───
 const FloralBg = () => (
   <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>
     <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,#fdfaf6 0%,#f8f2eb 35%,#f5eef8 65%,#f0f4ee 100%)"}}/>
@@ -164,7 +169,6 @@ const FloralBg = () => (
   </div>
 );
 
-// ─── ELITE SPARKLES ───
 const Sparkles = ({trigger}) => {
   const [particles,setParticles] = useState([]);
   useEffect(()=>{
@@ -219,7 +223,6 @@ const SourceBadge = ({source,score}) => (
   </div>
 );
 
-// ─── ORNATE DIVIDER ───
 const Divider = ({color=C.gold,label=""}) => (
   <div style={{display:"flex",alignItems:"center",gap:12,margin:"8px 0"}}>
     <div style={{flex:1,height:"1px",background:`linear-gradient(to right,transparent,${color}44,${color}88,${color}44,transparent)`}}/>
@@ -229,7 +232,7 @@ const Divider = ({color=C.gold,label=""}) => (
 );
 
 // ─────────────────────────────────────────────────────────────────
-//  IDEA CARD — "Letter / Stationery" look
+//  IDEA CARD
 // ─────────────────────────────────────────────────────────────────
 const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showShare}) => {
   const [open,setOpen]   = useState(false);
@@ -242,10 +245,7 @@ const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showS
       onMouseEnter={()=>setHover(true)}
       onMouseLeave={()=>setHover(false)}
       style={{
-        background:bg,
-        borderRadius:3,
-        padding:"28px 24px 22px",
-        // double-border "letter frame" effect
+        background:bg, borderRadius:3, padding:"28px 24px 22px",
         border:`1px solid rgba(198,168,94,${hover?.5:.25})`,
         outline:`3px solid rgba(198,168,94,${hover?.12:.05})`,
         outlineOffset:"3px",
@@ -255,31 +255,22 @@ const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showS
         transform: hover ? "translateY(-7px) rotate(.2deg)" : "rotate(-.15deg)",
         transition:"all .4s cubic-bezier(.34,1.56,.64,1)",
         animation:`letterReveal .6s ease ${idx*.09}s both`,
-        position:"relative",
-        overflow:"hidden",
+        position:"relative", overflow:"hidden",
       }}
     >
-      {/* Top gold rule */}
       <div style={{position:"absolute",top:0,left:0,right:0,height:"3px",background:`linear-gradient(to right,transparent,rgba(198,168,94,.4),rgba(198,168,94,.7),rgba(198,168,94,.4),transparent)`}}/>
-
       <SourceBadge source={idea.source||"ai"} score={idea.score||0}/>
-
       <div style={{display:"inline-block",background:"rgba(255,248,242,.9)",border:"1px solid rgba(198,168,94,.3)",borderRadius:2,padding:"3px 11px",fontSize:10.5,color:C.plum,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,letterSpacing:"1px",marginBottom:12,textTransform:"uppercase"}}>
         {idea.emoji} {idea.category}
       </div>
-
       <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:19,color:C.ink,margin:"0 0 8px",lineHeight:1.3,fontStyle:"italic",paddingRight:85,letterSpacing:"-.2px"}}>{idea.title}</h3>
-
       <Divider/>
-
       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13.5,color:C.soft,margin:"10px 0 14px",lineHeight:1.7,fontStyle:"italic"}}>{idea.genz_desc}</p>
-
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
         {[{i:"⏱",t:idea.time||idea.time_required},{i:"✦",t:idea.difficulty}].map((m,i)=>m.t&&(
           <span key={i} style={{background:"rgba(255,248,242,.75)",border:"1px solid rgba(198,168,94,.22)",borderRadius:2,padding:"3px 10px",fontSize:11,color:C.soft,fontFamily:"'Cormorant Garamond',serif",letterSpacing:".3px"}}>{m.i} {m.t}</span>
         ))}
       </div>
-
       {(idea.uses_items||idea.required_items||[]).length>0&&(
         <div style={{marginBottom:14}}>
           <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9.5,color:C.gold,letterSpacing:2.5,marginBottom:7,textTransform:"uppercase"}}>Uses from your list</p>
@@ -290,24 +281,12 @@ const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showS
           </div>
         </div>
       )}
-
       {idea.source==="community"&&idea.submitted_by_name&&(
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11.5,color:C.soft,fontStyle:"italic",marginBottom:12}}>✿ Shared by {idea.submitted_by_name}</p>
       )}
-
-      {/* Steps — "sealed letter" reveal */}
       <div
         onClick={()=>setOpen(!open)}
-        style={{
-          background:"rgba(255,248,242,.8)",
-          borderRadius:2,
-          padding:"11px 15px",
-          marginBottom:14,
-          border:"1px solid rgba(198,168,94,.22)",
-          borderLeft:`3px solid rgba(198,168,94,.5)`,
-          cursor:"pointer",
-          transition:"all .25s ease",
-        }}
+        style={{background:"rgba(255,248,242,.8)",borderRadius:2,padding:"11px 15px",marginBottom:14,border:"1px solid rgba(198,168,94,.22)",borderLeft:`3px solid rgba(198,168,94,.5)`,cursor:"pointer",transition:"all .25s ease"}}
       >
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.plum,fontWeight:600,fontStyle:"italic",letterSpacing:".2px"}}>
           {open?"▾ The steps, dearest…":"▸ Reveal the steps 💌"}
@@ -320,7 +299,6 @@ const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showS
           </ol>
         )}
       </div>
-
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         <button onClick={()=>user&&onSave(idea)} style={{background:isSaved?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(255,248,242,.8)",border:`1px solid ${isSaved?C.rose:"rgba(198,168,94,.3)"}`,borderRadius:3,padding:"6px 15px",fontSize:12,color:isSaved?C.plum:C.soft,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:user?"pointer":"not-allowed",transition:"all .2s",fontStyle:"italic"}}>
           {isSaved?"💖 Saved":"🤍 Save"}
@@ -345,15 +323,16 @@ const AuthModal = ({mode,onClose,onSwitch,onSuccess}) => {
   const [form,setForm] = useState({name:"",email:"",password:""});
   const [err,setErr]   = useState("");
   const [loading,setL] = useState(false);
-  const handle = async () => {
+  const handle = () => {
     if(!form.email||!form.password){setErr("Please fill all fields 💌");return;}
     setL(true);setErr("");
-    const existing = await DB.getUser(form.email);
+    const existing = DB.getUser(form.email);
     if(mode==="signup"){
       if(existing){setErr("Email already in registry 🌸");setL(false);return;}
       if(!form.name){setErr("Your name, please 💌");setL(false);return;}
       const user={id:`u_${Date.now()}`,name:form.name,email:form.email,password:form.password,role:"user",joined:Date.now()};
-      await DB.saveUser(user);onSuccess(user);
+      DB.saveUser(user);
+      onSuccess(user);
     } else {
       if(!existing||existing.password!==form.password){setErr("Invalid credentials. Alas 🥀");setL(false);return;}
       onSuccess(existing);
@@ -406,7 +385,7 @@ const ShareModal = ({idea,onClose,onSubmit}) => {
 };
 
 // ─────────────────────────────────────────────────────────────────
-//  LOADER  — upgraded cinematic
+//  LOADER
 // ─────────────────────────────────────────────────────────────────
 const LOADER_LINES = [
   "Consulting the social registry of ideas… 🎻",
@@ -427,7 +406,6 @@ const Loader = ({visible,items=[]}) => {
   if(!visible)return null;
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(253,250,246,.96)",backdropFilter:"blur(14px)",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:22}}>
-      {/* Ornate frame */}
       <div style={{position:"absolute",inset:"10%",border:"1px solid rgba(198,168,94,.15)",borderRadius:4,pointerEvents:"none"}}/>
       <div style={{position:"absolute",inset:"10.5%",border:"1px solid rgba(198,168,94,.08)",borderRadius:4,pointerEvents:"none"}}/>
       <div style={{fontSize:44,animation:"sway 2s ease-in-out infinite"}}>🎻</div>
@@ -454,15 +432,8 @@ const Toast = ({msg,visible}) => (
 // ─────────────────────────────────────────────────────────────────
 //  HOME PAGE
 // ─────────────────────────────────────────────────────────────────
-const HomePage = ({
-  inputVal, onInputChange, onAddItem, onKeyDown,
-  suggestions, items, filters, onRemoveItem,
-  onAddQuick, onToggleFilter, onGenerate, onClear,
-  inputRef,
-}) => (
+const HomePage = ({inputVal,onInputChange,onAddItem,onKeyDown,suggestions,items,filters,onRemoveItem,onAddQuick,onToggleFilter,onGenerate,onClear,inputRef}) => (
   <div style={{maxWidth:780,margin:"0 auto",padding:"64px 24px 90px",animation:"fadeUp .7s ease"}}>
-
-    {/* Hero */}
     <div style={{textAlign:"center",marginBottom:54}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:6,marginBottom:16}}>✦ A MOST CURIOUS DISCOVERY ENGINE ✦</div>
       <Divider color={C.gold}/>
@@ -475,33 +446,18 @@ const HomePage = ({
         Tell me what you have. The AI shall conjure ideas from <em>exactly</em> what you own — plus surface real ideas shared by our community.
       </p>
     </div>
-
-    {/* Main input card */}
     <div style={{background:"rgba(253,250,246,.85)",backdropFilter:"blur(12px)",border:"1px solid rgba(198,168,94,.3)",outline:"4px solid rgba(198,168,94,.06)",outlineOffset:4,borderRadius:4,padding:"34px 30px",boxShadow:"0 12px 50px rgba(125,90,123,.09), inset 0 1px 0 rgba(255,255,255,.8)"}}>
-
-      {/* Top accent rule */}
       <div style={{height:"2px",background:"linear-gradient(to right,transparent,rgba(198,168,94,.5),rgba(198,168,94,.8),rgba(198,168,94,.5),transparent)",marginBottom:24,borderRadius:1}}/>
-
       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:C.gold,letterSpacing:3,marginBottom:14,textTransform:"uppercase"}}>Pray tell, what do you possess?</p>
-
       <div style={{display:"flex",gap:10,marginBottom:12}}>
-        <input
-          ref={inputRef}
-          value={inputVal}
-          onChange={e=>onInputChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder="e.g., pen, old notebook, emotional instability…"
-          style={{...inpStyle,flex:1,padding:"14px 18px",fontSize:14.5}}
-        />
+        <input ref={inputRef} value={inputVal} onChange={e=>onInputChange(e.target.value)} onKeyDown={onKeyDown} placeholder="e.g., pen, old notebook, emotional instability…" style={{...inpStyle,flex:1,padding:"14px 18px",fontSize:14.5}}/>
         <button onClick={onAddItem} style={{...btnStyle,padding:"14px 24px"}}>Add ✦</button>
       </div>
-
       {suggestions.length>0&&(
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12,padding:"10px 12px",background:"rgba(253,250,246,.9)",borderRadius:3,border:"1px solid rgba(198,168,94,.18)"}}>
           {suggestions.map(s=><span key={s} onClick={()=>onAddQuick(s)} style={{background:"rgba(212,167,167,.12)",border:"1px solid rgba(212,167,167,.28)",borderRadius:3,padding:"3px 12px",fontSize:13,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:C.ink,fontStyle:"italic"}}>{s}</span>)}
         </div>
       )}
-
       <div style={{marginBottom:16}}>
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.soft,marginBottom:8,letterSpacing:1.5,textTransform:"uppercase"}}>Quick add →</p>
         <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
@@ -510,13 +466,11 @@ const HomePage = ({
           ))}
         </div>
       </div>
-
       {items.length>0&&(
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:18,padding:"12px",background:"rgba(255,255,255,.4)",borderRadius:3,border:"1px solid rgba(198,168,94,.14)"}}>
           {items.map((it,i)=><Chip key={it} label={it} onRemove={()=>onRemoveItem(it)} bg={[C.blush,C.lavender,C.powder,C.sage][i%4]}/>)}
         </div>
       )}
-
       <div style={{marginBottom:22}}>
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.soft,marginBottom:8,letterSpacing:1.5,textTransform:"uppercase"}}>Filters (optional) →</p>
         <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
@@ -525,10 +479,7 @@ const HomePage = ({
           ))}
         </div>
       </div>
-
-      {/* Bottom accent rule */}
       <div style={{height:"1px",background:"linear-gradient(to right,transparent,rgba(198,168,94,.3),transparent)",marginBottom:22}}/>
-
       <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
         <button onClick={onGenerate} disabled={!items.length} style={{...btnStyle,padding:"14px 34px",fontSize:16,opacity:items.length?1:.4,cursor:items.length?"pointer":"not-allowed",letterSpacing:".4px"}}>
           Surprise Me, Your Grace ✨
@@ -536,8 +487,6 @@ const HomePage = ({
         {items.length>0&&<button onClick={onClear} style={{background:"transparent",border:"1px solid rgba(198,168,94,.28)",borderRadius:4,padding:"14px 20px",fontSize:13,fontFamily:"'Cormorant Garamond',serif",color:C.soft,cursor:"pointer",fontStyle:"italic"}}>Clear all</button>}
       </div>
     </div>
-
-    {/* How it works */}
     <div style={{marginTop:60,textAlign:"center"}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ HOW IT WORKS ✦</div>
       <Divider color={C.gold}/>
@@ -546,7 +495,7 @@ const HomePage = ({
           {e:"📝",t:"Add your items",d:"Type anything you have — food, craft, clothes, random stuff"},
           {e:"✨",t:"AI creates for you",d:"Conjures ideas using only your exact items"},
           {e:"🌸",t:"Community matches",d:"Real ideas shared by others that fit your items too"},
-          {e:"✦", t:"Save & share",d:"Like what was conjured? Share it to the community registry"},
+          {e:"✦",t:"Save & share",d:"Like what was conjured? Share it to the community registry"},
         ].map((s,i)=>(
           <div key={i} style={{background:[C.blush,C.lavender,C.powder,C.sage][i],borderRadius:3,padding:"24px 16px",border:"1px solid rgba(198,168,94,.18)",boxShadow:"0 3px 14px rgba(74,63,63,.06)"}}>
             <div style={{fontSize:26,marginBottom:10}}>{s.e}</div>
@@ -567,11 +516,8 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
     ...aiIdeas,
     ...commIdeas.filter(c=>!aiIdeas.find(a=>a.title===c.title)),
   ].filter(i=>catFilter==="All"||i.category===catFilter);
-
   return (
     <div style={{maxWidth:1100,margin:"0 auto",padding:"44px 24px 90px",animation:"fadeUp .5s ease"}}>
-
-      {/* Header */}
       <div style={{textAlign:"center",marginBottom:36}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ YOUR RESULTS ✦</div>
         <Divider color={C.gold}/>
@@ -586,15 +532,11 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
           <button onClick={onBack} style={{background:"transparent",border:"1px solid rgba(198,168,94,.3)",borderRadius:4,padding:"9px 16px",fontSize:13,fontFamily:"'Cormorant Garamond',serif",color:C.soft,cursor:"pointer",fontStyle:"italic"}}>← Back</button>
         </div>
       </div>
-
-      {/* Category filters */}
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:28,justifyContent:"center"}}>
         {CATEGORIES.map(cat=>(
           <span key={cat} onClick={()=>setCatFilter(cat)} style={{background:catFilter===cat?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(253,250,246,.8)",border:`1px solid ${catFilter===cat?C.rose:"rgba(198,168,94,.22)"}`,borderRadius:3,padding:"6px 15px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:catFilter===cat?C.plum:C.soft,fontWeight:catFilter===cat?600:400,transition:"all .25s",fontStyle:"italic"}}>{cat}</span>
         ))}
       </div>
-
-      {/* AI section */}
       {aiIdeas.filter(i=>catFilter==="All"||i.category===catFilter).length>0&&(
         <div style={{marginBottom:40}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
@@ -609,8 +551,6 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
           </div>
         </div>
       )}
-
-      {/* Community section */}
       {commIdeas.filter(i=>catFilter==="All"||i.category===catFilter).length>0&&(
         <div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
@@ -625,7 +565,6 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
           </div>
         </div>
       )}
-
       {allResults.length===0&&(
         <div style={{textAlign:"center",padding:"60px 20px"}}>
           <div style={{fontSize:42,marginBottom:16}}>🥀</div>
@@ -809,8 +748,15 @@ export default function App() {
   const inputRef = useRef();
 
   useEffect(()=>{
+    if (typeof window === 'undefined') return;
     const stored = sessionStorage.getItem("old_user");
-    if(stored){const u=JSON.parse(stored);setUser(u);loadUserData(u);}
+    if(stored){
+      try {
+        const u = JSON.parse(stored);
+        setUser(u);
+        loadUserData(u);
+      } catch {}
+    }
     loadCommunityIdeas();
   },[]);
 
@@ -819,25 +765,32 @@ export default function App() {
     setTimeout(()=>setToast(t=>({...t,visible:false})),2400);
   };
 
-  const loadUserData = async (u) => {
-    const [saved,hist] = await Promise.all([DB.getSaved(u.id),DB.getHistory(u.id)]);
-    setSavedList(saved);setHistList(hist);
-    if(u.role==="admin"){const p=await DB.getPending();setPending(p);}
+  const loadUserData = (u) => {
+    const saved = DB.getSaved(u.id);
+    const hist  = DB.getHistory(u.id);
+    setSavedList(saved);
+    setHistList(hist);
+    if(u.role==="admin"){
+      setPending(DB.getPending());
+    }
   };
 
-  const loadCommunityIdeas = async () => {
-    const ideas = await DB.getCommunityIdeas();
+  const loadCommunityIdeas = () => {
+    const ideas = DB.getCommunityIdeas();
     setAllComm(ideas.filter(i=>i.status==="approved"));
   };
 
   const handleAuth = (u) => {
-    setUser(u);sessionStorage.setItem("old_user",JSON.stringify(u));
-    setAuthModal(null);loadUserData(u);
+    setUser(u);
+    if (typeof window !== 'undefined') sessionStorage.setItem("old_user", JSON.stringify(u));
+    setAuthModal(null);
+    loadUserData(u);
     showToast(`Welcome, ${u.name.split(" ")[0]} 🌸`);
   };
 
   const logout = () => {
-    setUser(null);sessionStorage.removeItem("old_user");
+    setUser(null);
+    if (typeof window !== 'undefined') sessionStorage.removeItem("old_user");
     setSavedList([]);setHistList([]);setPending([]);
     setPage("home");showToast("Farewell, dearest 👋");
   };
@@ -860,7 +813,7 @@ export default function App() {
     if(!currentItems.length) return;
     setLoading(true);setAiIdeas([]);setCommIdeas([]);
 
-    const freshComm   = await DB.getCommunityIdeas();
+    const freshComm     = DB.getCommunityIdeas();
     const freshApproved = freshComm.filter(i=>i.status==="approved");
     setAllComm(freshApproved);
     const matched = matchingCommunityIdeas(currentItems, freshApproved);
@@ -885,16 +838,29 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
 {"ideas":[{"title":"string","category":"Culinary Delights|Artistic Pursuits|Attire Affairs|Tokens of Affection|Curious Possessions","emoji":"single emoji","difficulty":"Effortless|A gentle endeavour|Suspiciously easy|Requires feelings|Meditative","time":"e.g. 15 mins","genz_desc":"1-2 sentences Gen Z + Bridgerton tone, witty and warm","uses_items":["only items from the user's exact list"],"optional_items":[],"steps":["step 1","step 2","step 3","step 4"]}]}`;
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ai/generate`, {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ai/generate`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          messages:[{role:"user",content:prompt}]
+        })
+      });
       const data = await res.json();
       const text = data.content?.[0]?.text||"";
       const clean = text.replace(/```json|```/g,"").trim();
       const parsed = JSON.parse(clean);
-      const ideas = (parsed.ideas||[]).map(i=>({...i,id:`ai_${Date.now()}_${Math.random().toString(36).slice(2)}`,source:"ai",score:100}));
+      const ideas = (parsed.ideas||[]).map(i=>({
+        ...i,
+        id:`ai_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        source:"ai",
+        score:100
+      }));
       setAiIdeas(ideas);
       if(user){
-        await DB.addHistory(user.id,currentItems,ideas.length+matched.length);
-        const h=await DB.getHistory(user.id);setHistList(h);
+        DB.addHistory(user.id, currentItems, ideas.length + matched.length);
+        setHistList(DB.getHistory(user.id));
       }
       setPage("results");
       setSparkTrigger(t=>t+1);
@@ -905,16 +871,16 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
     setLoading(false);
   },[items,filters,user]);
 
-  const handleSave = async (idea) => {
+  const handleSave = (idea) => {
     if(!user){setAuthModal("login");return;}
-    const {saved,list} = await DB.toggleSave(user.id,idea);
+    const {saved,list} = DB.toggleSave(user.id, idea);
     setSavedList(list);
     showToast(saved?"Saved to your collection 💖":"Removed from collection");
   };
 
-  const handleLike = async (idea) => {
+  const handleLike = (idea) => {
     if(!user){setAuthModal("login");return;}
-    const result = await DB.likeIdea(idea.id,user.id);
+    const result = DB.likeIdea(idea.id, user.id);
     if(result){
       const updater = i=>i.id===idea.id?{...i,likes:result.likes,likers:result.likers}:i;
       setAllComm(p=>p.map(updater));
@@ -928,21 +894,30 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
     setShareModal(idea);
   };
 
-  const submitToCommunity = async (idea,extra) => {
-    const communityIdea = {...idea,id:`c_${Date.now()}_${Math.random().toString(36).slice(2)}`,source:"community",status:"pending",submitted_by:user.id,submitted_by_name:user.name,submitted_at:Date.now(),likes:0,likers:[],required_items:idea.uses_items||[],note:extra.note||""};
-    await DB.submitForReview(communityIdea);
+  const submitToCommunity = (idea, extra) => {
+    const communityIdea = {
+      ...idea,
+      id:`c_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      source:"community", status:"pending",
+      submitted_by:user.id, submitted_by_name:user.name,
+      submitted_at:Date.now(), likes:0, likers:[],
+      required_items:idea.uses_items||[],
+      note:extra.note||""
+    };
+    DB.submitForReview(communityIdea);
     setShareModal(null);
     showToast("Submitted for review 💌 Thank you, darling!");
   };
 
-  const handleApprove = async (idea) => {
-    await DB.approveIdea(idea);
+  const handleApprove = (idea) => {
+    const approved = DB.approveIdea(idea);
     setPending(p=>p.filter(x=>x.id!==idea.id));
-    setAllComm(p=>[...p,{...idea,status:"approved"}]);
+    setAllComm(p=>[...p, approved]);
     showToast("Idea approved ✦ Now live in the community!");
   };
-  const handleReject = async (id) => {
-    await DB.rejectIdea(id);
+
+  const handleReject = (id) => {
+    DB.rejectIdea(id);
     setPending(p=>p.filter(x=>x.id!==id));
     showToast("Idea rejected 🥀");
   };
@@ -956,52 +931,17 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;1,400;1,600&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Poppins:wght@300;400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
         body{background:#fdfaf6;}
-
-        @keyframes fadeUp{
-          from{opacity:0;transform:translateY(26px)}
-          to{opacity:1;transform:none}
-        }
-        @keyframes chipIn{
-          from{opacity:0;transform:scale(.82)}
-          to{opacity:1;transform:scale(1)}
-        }
-        @keyframes sway{
-          0%,100%{transform:rotate(-10deg)}
-          50%{transform:rotate(10deg)}
-        }
-        @keyframes letterReveal{
-          from{opacity:0;transform:translateY(32px) rotate(-1.2deg) scale(.97);filter:blur(1.5px)}
-          to{opacity:1;transform:translateY(0) rotate(0) scale(1);filter:blur(0)}
-        }
-        @keyframes sparkleRise{
-          0%{opacity:0;transform:translateY(0) scale(.4) rotate(0deg)}
-          30%{opacity:1;transform:translateY(-22px) scale(1.15) rotate(15deg)}
-          100%{opacity:0;transform:translateY(-65px) scale(.65) rotate(30deg)}
-        }
-        @keyframes modalIn{
-          from{opacity:0;transform:scale(.93) translateY(18px)}
-          to{opacity:1;transform:none}
-        }
-        @keyframes navGlow{
-          0%,100%{box-shadow:0 1px 0 rgba(198,168,94,.15)}
-          50%{box-shadow:0 1px 0 rgba(198,168,94,.35)}
-        }
-
+        @keyframes fadeUp{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+        @keyframes chipIn{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:scale(1)}}
+        @keyframes sway{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(10deg)}}
+        @keyframes letterReveal{from{opacity:0;transform:translateY(32px) rotate(-1.2deg) scale(.97);filter:blur(1.5px)}to{opacity:1;transform:translateY(0) rotate(0) scale(1);filter:blur(0)}}
+        @keyframes sparkleRise{0%{opacity:0;transform:translateY(0) scale(.4) rotate(0deg)}30%{opacity:1;transform:translateY(-22px) scale(1.15) rotate(15deg)}100%{opacity:0;transform:translateY(-65px) scale(.65) rotate(30deg)}}
+        @keyframes modalIn{from{opacity:0;transform:scale(.93) translateY(18px)}to{opacity:1;transform:none}}
+        @keyframes navGlow{0%,100%{box-shadow:0 1px 0 rgba(198,168,94,.15)}50%{box-shadow:0 1px 0 rgba(198,168,94,.35)}}
         input,textarea{transition:border-color .25s,box-shadow .25s;}
-        input:focus,textarea:focus{
-          border-color:#D8A7A7!important;
-          border-bottom-color:#C6A85E!important;
-          box-shadow:0 0 0 3px rgba(216,167,167,.15)!important;
-          outline:none;
-        }
-        button:not([disabled]):hover{
-          transform:translateY(-2px)!important;
-          box-shadow:0 8px 24px rgba(125,90,123,.22)!important;
-        }
-        @media(max-width:600px){
-          h1{font-size:28px!important;}
-          nav{padding:12px 16px!important;}
-        }
+        input:focus,textarea:focus{border-color:#D8A7A7!important;border-bottom-color:#C6A85E!important;box-shadow:0 0 0 3px rgba(216,167,167,.15)!important;outline:none;}
+        button:not([disabled]):hover{transform:translateY(-2px)!important;box-shadow:0 8px 24px rgba(125,90,123,.22)!important;}
+        @media(max-width:600px){h1{font-size:28px!important;}nav{padding:12px 16px!important;}}
       `}</style>
 
       <FloralBg/>
@@ -1010,32 +950,14 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
       <Sparkles trigger={sparkTrigger}/>
 
       {authModal&&(
-        <AuthModal
-          mode={authModal}
-          onClose={()=>setAuthModal(null)}
-          onSwitch={()=>setAuthModal(m=>m==="login"?"signup":"login")}
-          onSuccess={handleAuth}
-        />
+        <AuthModal mode={authModal} onClose={()=>setAuthModal(null)} onSwitch={()=>setAuthModal(m=>m==="login"?"signup":"login")} onSuccess={handleAuth}/>
       )}
       {shareModal&&(
-        <ShareModal
-          idea={shareModal}
-          onClose={()=>setShareModal(null)}
-          onSubmit={submitToCommunity}
-        />
+        <ShareModal idea={shareModal} onClose={()=>setShareModal(null)} onSubmit={submitToCommunity}/>
       )}
 
       <div style={{minHeight:"100vh",background:"transparent",position:"relative",zIndex:1}}>
-
-        {/* ── NAV ── */}
-        <nav style={{
-          position:"sticky",top:0,zIndex:100,
-          background:"rgba(253,250,246,.92)",
-          backdropFilter:"blur(18px)",
-          borderBottom:"1px solid rgba(198,168,94,.22)",
-          animation:"navGlow 4s ease-in-out infinite",
-        }}>
-          {/* nav top gold rule */}
+        <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(253,250,246,.92)",backdropFilter:"blur(18px)",borderBottom:"1px solid rgba(198,168,94,.22)",animation:"navGlow 4s ease-in-out infinite"}}>
           <div style={{height:"2px",background:"linear-gradient(to right,transparent,rgba(198,168,94,.35),rgba(198,168,94,.6),rgba(198,168,94,.35),transparent)"}}/>
           <div style={{maxWidth:1120,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 30px",flexWrap:"wrap",gap:10}}>
             <div onClick={()=>setPage("home")} style={{cursor:"pointer"}}>
@@ -1057,81 +979,13 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
           </div>
         </nav>
 
-        {page==="home"&&(
-          <HomePage
-            inputVal={inputVal}
-            onInputChange={handleInputChange}
-            onAddItem={()=>addItem(inputVal)}
-            onKeyDown={handleKeyDown}
-            suggestions={suggestions}
-            items={items}
-            filters={filters}
-            onRemoveItem={removeItem}
-            onAddQuick={addItem}
-            onToggleFilter={toggleFilter}
-            onGenerate={()=>generate()}
-            onClear={()=>setItems([])}
-            inputRef={inputRef}
-          />
-        )}
-        {page==="results"&&(
-          <ResultsPage
-            aiIdeas={aiIdeas}
-            commIdeas={commIdeas}
-            items={items}
-            catFilter={catFilter}
-            setCatFilter={setCatFilter}
-            user={user}
-            onSave={handleSave}
-            savedIds={savedIds}
-            onLike={handleLike}
-            onShareToCommunity={handleShareToCommunity}
-            onGenerate={()=>generate()}
-            onBack={()=>setPage("home")}
-          />
-        )}
-        {page==="community"&&(
-          <CommunityPage
-            allComm={allComm}
-            user={user}
-            onSave={handleSave}
-            savedIds={savedIds}
-            onLike={handleLike}
-            onGoHome={()=>setPage("home")}
-          />
-        )}
-        {page==="saved"&&(
-          <SavedPage
-            savedList={savedList}
-            user={user}
-            onSave={handleSave}
-            savedIds={savedIds}
-            onLike={handleLike}
-            onShareToCommunity={handleShareToCommunity}
-            onGoHome={()=>setPage("home")}
-          />
-        )}
-        {page==="profile"&&(
-          <ProfilePage
-            user={user}
-            savedList={savedList}
-            histList={histList}
-            allComm={allComm}
-            onLogin={()=>setAuthModal("login")}
-            onSignup={()=>setAuthModal("signup")}
-            onLogout={logout}
-            onRerun={()=>{if(histList[0]){setItems(histList[0].items);generate(histList[0].items);}}}
-          />
-        )}
-        {page==="admin"&&user?.role==="admin"&&(
-          <AdminPage
-            pending={pending}
-            onApprove={handleApprove}
-            onReject={handleReject}
-          />
-        )}
+        {page==="home"&&<HomePage inputVal={inputVal} onInputChange={handleInputChange} onAddItem={()=>addItem(inputVal)} onKeyDown={handleKeyDown} suggestions={suggestions} items={items} filters={filters} onRemoveItem={removeItem} onAddQuick={addItem} onToggleFilter={toggleFilter} onGenerate={()=>generate()} onClear={()=>setItems([])} inputRef={inputRef}/>}
+        {page==="results"&&<ResultsPage aiIdeas={aiIdeas} commIdeas={commIdeas} items={items} catFilter={catFilter} setCatFilter={setCatFilter} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onShareToCommunity={handleShareToCommunity} onGenerate={()=>generate()} onBack={()=>setPage("home")}/>}
+        {page==="community"&&<CommunityPage allComm={allComm} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onGoHome={()=>setPage("home")}/>}
+        {page==="saved"&&<SavedPage savedList={savedList} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onShareToCommunity={handleShareToCommunity} onGoHome={()=>setPage("home")}/>}
+        {page==="profile"&&<ProfilePage user={user} savedList={savedList} histList={histList} allComm={allComm} onLogin={()=>setAuthModal("login")} onSignup={()=>setAuthModal("signup")} onLogout={logout} onRerun={()=>{if(histList[0]){setItems(histList[0].items);generate(histList[0].items);}}}/>}
+        {page==="admin"&&user?.role==="admin"&&<AdminPage pending={pending} onApprove={handleApprove} onReject={handleReject}/>}
 
-        {/* Footer */}
         <div style={{borderTop:"1px solid rgba(198,168,94,.18)",textAlign:"center",padding:"28px",background:"rgba(253,250,246,.6)"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:4,marginBottom:6}}>✦ ✦ ✦</div>
           <p style={{fontFamily:"'Playfair Display',serif",fontSize:13.5,color:C.soft,fontStyle:"italic"}}>Of Little Delights · Where little things become rather lovely</p>
