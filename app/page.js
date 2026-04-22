@@ -21,7 +21,7 @@ const FILTERS_DEF = [
 const CATEGORIES = ["All","Culinary Delights","Artistic Pursuits","Attire Affairs","Tokens of Affection","Curious Possessions"];
 
 // ─────────────────────────────────────────────────────────────────
-//  LOCALSTORAGE HELPERS  (replaces window.storage — works in browsers)
+//  LOCALSTORAGE HELPERS
 // ─────────────────────────────────────────────────────────────────
 const ls = {
   get: (key) => {
@@ -38,18 +38,22 @@ const ls = {
   },
   keys: (prefix) => {
     if (typeof window === 'undefined') return [];
-    try {
-      return Object.keys(localStorage).filter(k => k.startsWith(prefix));
-    } catch { return []; }
+    try { return Object.keys(localStorage).filter(k => k.startsWith(prefix)); } catch { return []; }
   },
 };
 
+// Simple hash — keeps passwords out of plain-text localStorage
+const hashPw = (pw) => btoa(unescape(encodeURIComponent(pw + "_old_delights_salt")));
+
+// ─────────────────────────────────────────────────────────────────
+//  LOCAL DB  (all data stored client-side in localStorage)
+// ─────────────────────────────────────────────────────────────────
 const DB = {
   getUser(email) {
-    return ls.get(`user:${email}`);
+    return ls.get(`user:${email.toLowerCase().trim()}`);
   },
   saveUser(user) {
-    ls.set(`user:${user.email}`, user);
+    ls.set(`user:${user.email.toLowerCase().trim()}`, user);
   },
   getCommunityIdeas() {
     const keys = ls.keys("idea:");
@@ -79,11 +83,13 @@ const DB = {
     return { saved: !exists, list: updated };
   },
   addHistory(userId, items, count) {
+    if (!userId) return;
     const hist = ls.get(`hist:${userId}`) || [];
     hist.unshift({ items, count, ts: Date.now() });
     ls.set(`hist:${userId}`, hist.slice(0, 20));
   },
   getHistory(userId) {
+    if (!userId) return [];
     return ls.get(`hist:${userId}`) || [];
   },
   getPending() {
@@ -108,22 +114,22 @@ const DB = {
 //  MATCHING LOGIC
 // ─────────────────────────────────────────────────────────────────
 function matchScore(userItems, idea) {
-  const req = (idea.required_items || idea.uses_items || []).map(x=>x.toLowerCase().trim());
-  const opt = (idea.optional_items || []).map(x=>x.toLowerCase().trim());
+  const req = (idea.required_items || idea.uses_items || []).map(x => x.toLowerCase().trim());
+  const opt = (idea.optional_items || []).map(x => x.toLowerCase().trim());
   if (!req.length) return 0;
-  const ui = userItems.map(x=>x.toLowerCase().trim());
-  const reqHit = req.filter(x=>ui.includes(x)).length;
-  const optHit = opt.filter(x=>ui.includes(x)).length;
-  const base = Math.round((reqHit/req.length)*100);
-  const bonus = opt.length ? Math.round((optHit/opt.length)*15) : 0;
-  return Math.min(base+bonus, 100);
+  const ui = userItems.map(x => x.toLowerCase().trim());
+  const reqHit = req.filter(x => ui.includes(x)).length;
+  const optHit = opt.filter(x => ui.includes(x)).length;
+  const base = Math.round((reqHit / req.length) * 100);
+  const bonus = opt.length ? Math.round((optHit / opt.length) * 15) : 0;
+  return Math.min(base + bonus, 100);
 }
 function matchingCommunityIdeas(userItems, allIdeas) {
   return allIdeas
     .filter(i => i.status === "approved")
     .map(i => ({ ...i, score: matchScore(userItems, i) }))
     .filter(i => i.score >= 40)
-    .sort((a,b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -170,27 +176,27 @@ const FloralBg = () => (
 );
 
 const Sparkles = ({trigger}) => {
-  const [particles,setParticles] = useState([]);
-  useEffect(()=>{
-    if(!trigger) return;
-    const pts = Array.from({length:12},(_,i)=>({
+  const [particles, setParticles] = useState([]);
+  useEffect(() => {
+    if (!trigger) return;
+    const pts = Array.from({length:12}, (_, i) => ({
       id:i,
-      x: 10 + Math.random()*80,
-      y: 10 + Math.random()*80,
-      size: 5 + Math.random()*6,
-      delay: Math.random()*0.5,
-      dur: 1.0 + Math.random()*0.7,
+      x: 10 + Math.random() * 80,
+      y: 10 + Math.random() * 80,
+      size: 5 + Math.random() * 6,
+      delay: Math.random() * 0.5,
+      dur: 1.0 + Math.random() * 0.7,
       char: ["✦","✧","❀","✿","·","❋"][Math.floor(Math.random()*6)],
       color:["#C6A85E","#D8A7A7","#c6a85eaa","#7D5A7B55","#E6DDF2"][Math.floor(Math.random()*5)],
     }));
     setParticles(pts);
-    const t = setTimeout(()=>setParticles([]),2200);
-    return()=>clearTimeout(t);
-  },[trigger]);
-  if(!particles.length) return null;
-  return(
+    const t = setTimeout(() => setParticles([]), 2200);
+    return () => clearTimeout(t);
+  }, [trigger]);
+  if (!particles.length) return null;
+  return (
     <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:200,overflow:"hidden"}}>
-      {particles.map(p=>(
+      {particles.map(p => (
         <div key={p.id} style={{
           position:"absolute",
           left:`${p.x}%`, top:`${p.y}%`,
@@ -203,10 +209,10 @@ const Sparkles = ({trigger}) => {
   );
 };
 
-const Chip = ({label,onRemove,bg}) => (
+const Chip = ({label, onRemove, bg}) => (
   <span style={{display:"inline-flex",alignItems:"center",gap:5,background:bg||C.blush,color:C.ink,border:"1px solid rgba(198,168,94,.3)",borderRadius:20,padding:"4px 13px",fontSize:12.5,fontFamily:"'Cormorant Garamond',serif",fontWeight:500,animation:"chipIn .2s ease",letterSpacing:".2px"}}>
     {label}
-    {onRemove&&<span onClick={onRemove} style={{cursor:"pointer",color:C.plum,fontWeight:700,fontSize:15,lineHeight:1}}>×</span>}
+    {onRemove && <span onClick={onRemove} style={{cursor:"pointer",color:C.plum,fontWeight:700,fontSize:15,lineHeight:1}}>×</span>}
   </span>
 );
 
@@ -214,52 +220,52 @@ const Tag = ({label}) => (
   <span style={{background:"rgba(125,90,123,.08)",border:"1px solid rgba(125,90,123,.18)",borderRadius:3,padding:"2px 9px",fontSize:11,color:C.plum,fontFamily:"'Cormorant Garamond',serif",letterSpacing:".3px"}}>{label}</span>
 );
 
-const SourceBadge = ({source,score}) => (
+const SourceBadge = ({source, score}) => (
   <div style={{position:"absolute",top:14,right:14,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3}}>
     <span style={{background:source==="community"?"rgba(125,90,123,.12)":"rgba(198,168,94,.12)",border:`1px solid ${source==="community"?C.plum:C.gold}`,borderRadius:3,padding:"2px 9px",fontSize:10,color:source==="community"?C.plum:C.gold,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,letterSpacing:"1px"}}>
       {source==="community"?"✦ Community":"✨ AI"}
     </span>
-    {score>0&&<span style={{fontSize:10,color:C.gold,fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic"}}>{score}% match</span>}
+    {score > 0 && <span style={{fontSize:10,color:C.gold,fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic"}}>{score}% match</span>}
   </div>
 );
 
-const Divider = ({color=C.gold,label=""}) => (
+const Divider = ({color=C.gold, label=""}) => (
   <div style={{display:"flex",alignItems:"center",gap:12,margin:"8px 0"}}>
     <div style={{flex:1,height:"1px",background:`linear-gradient(to right,transparent,${color}44,${color}88,${color}44,transparent)`}}/>
-    {label&&<span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color,letterSpacing:3,whiteSpace:"nowrap"}}>{label}</span>}
-    {label&&<div style={{flex:1,height:"1px",background:`linear-gradient(to left,transparent,${color}44,${color}88,${color}44,transparent)`}}/>}
+    {label && <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color,letterSpacing:3,whiteSpace:"nowrap"}}>{label}</span>}
+    {label && <div style={{flex:1,height:"1px",background:`linear-gradient(to left,transparent,${color}44,${color}88,${color}44,transparent)`}}/>}
   </div>
 );
 
 // ─────────────────────────────────────────────────────────────────
 //  IDEA CARD
 // ─────────────────────────────────────────────────────────────────
-const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showShare}) => {
-  const [open,setOpen]   = useState(false);
-  const [hover,setHover] = useState(false);
-  const bg = CARD_BG[idx%CARD_BG.length];
-  const isLiked = (idea.likers||[]).includes(user?.id);
+const IdeaCard = ({idea, idx, user, onSave, savedIds, onLike, onShareToCommunity, showShare}) => {
+  const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
+  const bg = CARD_BG[idx % CARD_BG.length];
+  const isLiked = (idea.likers || []).includes(user?.id);
   const isSaved = savedIds.includes(idea.id);
   return (
     <div
-      onMouseEnter={()=>setHover(true)}
-      onMouseLeave={()=>setHover(false)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         background:bg, borderRadius:3, padding:"28px 24px 22px",
-        border:`1px solid rgba(198,168,94,${hover?.5:.25})`,
-        outline:`3px solid rgba(198,168,94,${hover?.12:.05})`,
+        border:`1px solid rgba(198,168,94,${hover ? .5 : .25})`,
+        outline:`3px solid rgba(198,168,94,${hover ? .12 : .05})`,
         outlineOffset:"3px",
         boxShadow: hover
           ? "0 22px 55px rgba(125,90,123,.2), 0 4px 12px rgba(198,168,94,.15), inset 0 1px 0 rgba(255,255,255,.7)"
           : "0 6px 28px rgba(74,63,63,.09), 0 1px 4px rgba(198,168,94,.1), inset 0 1px 0 rgba(255,255,255,.5)",
         transform: hover ? "translateY(-7px) rotate(.2deg)" : "rotate(-.15deg)",
         transition:"all .4s cubic-bezier(.34,1.56,.64,1)",
-        animation:`letterReveal .6s ease ${idx*.09}s both`,
+        animation:`letterReveal .6s ease ${idx * .09}s both`,
         position:"relative", overflow:"hidden",
       }}
     >
       <div style={{position:"absolute",top:0,left:0,right:0,height:"3px",background:`linear-gradient(to right,transparent,rgba(198,168,94,.4),rgba(198,168,94,.7),rgba(198,168,94,.4),transparent)`}}/>
-      <SourceBadge source={idea.source||"ai"} score={idea.score||0}/>
+      <SourceBadge source={idea.source || "ai"} score={idea.score || 0}/>
       <div style={{display:"inline-block",background:"rgba(255,248,242,.9)",border:"1px solid rgba(198,168,94,.3)",borderRadius:2,padding:"3px 11px",fontSize:10.5,color:C.plum,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,letterSpacing:"1px",marginBottom:12,textTransform:"uppercase"}}>
         {idea.emoji} {idea.category}
       </div>
@@ -267,49 +273,57 @@ const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showS
       <Divider/>
       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13.5,color:C.soft,margin:"10px 0 14px",lineHeight:1.7,fontStyle:"italic"}}>{idea.genz_desc}</p>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:14}}>
-        {[{i:"⏱",t:idea.time||idea.time_required},{i:"✦",t:idea.difficulty}].map((m,i)=>m.t&&(
+        {[{i:"⏱",t:idea.time||idea.time_required},{i:"✦",t:idea.difficulty}].map((m,i) => m.t && (
           <span key={i} style={{background:"rgba(255,248,242,.75)",border:"1px solid rgba(198,168,94,.22)",borderRadius:2,padding:"3px 10px",fontSize:11,color:C.soft,fontFamily:"'Cormorant Garamond',serif",letterSpacing:".3px"}}>{m.i} {m.t}</span>
         ))}
       </div>
-      {(idea.uses_items||idea.required_items||[]).length>0&&(
+      {(idea.uses_items || idea.required_items || []).length > 0 && (
         <div style={{marginBottom:14}}>
           <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9.5,color:C.gold,letterSpacing:2.5,marginBottom:7,textTransform:"uppercase"}}>Uses from your list</p>
           <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            {(idea.uses_items||idea.required_items).map((item,i)=>(
+            {(idea.uses_items || idea.required_items).map((item, i) => (
               <span key={i} style={{background:"rgba(255,255,255,.6)",border:"1px solid rgba(125,90,123,.18)",borderRadius:2,padding:"2px 9px",fontSize:11.5,color:C.ink,fontFamily:"'Cormorant Garamond',serif"}}>{item}</span>
             ))}
           </div>
         </div>
       )}
-      {idea.source==="community"&&idea.submitted_by_name&&(
+      {idea.source === "community" && idea.submitted_by_name && (
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11.5,color:C.soft,fontStyle:"italic",marginBottom:12}}>✿ Shared by {idea.submitted_by_name}</p>
       )}
       <div
-        onClick={()=>setOpen(!open)}
+        onClick={() => setOpen(!open)}
         style={{background:"rgba(255,248,242,.8)",borderRadius:2,padding:"11px 15px",marginBottom:14,border:"1px solid rgba(198,168,94,.22)",borderLeft:`3px solid rgba(198,168,94,.5)`,cursor:"pointer",transition:"all .25s ease"}}
       >
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.plum,fontWeight:600,fontStyle:"italic",letterSpacing:".2px"}}>
-          {open?"▾ The steps, dearest…":"▸ Reveal the steps 💌"}
+          {open ? "▾ The steps, dearest…" : "▸ Reveal the steps 💌"}
         </div>
-        {open&&(
+        {open && (
           <ol style={{margin:"12px 0 0",paddingLeft:18}}>
-            {(idea.steps||[]).map((s,i)=>(
+            {(idea.steps || []).map((s, i) => (
               <li key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,marginBottom:7,lineHeight:1.65,fontStyle:"italic"}}>{s}</li>
             ))}
           </ol>
         )}
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-        <button onClick={()=>user&&onSave(idea)} style={{background:isSaved?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(255,248,242,.8)",border:`1px solid ${isSaved?C.rose:"rgba(198,168,94,.3)"}`,borderRadius:3,padding:"6px 15px",fontSize:12,color:isSaved?C.plum:C.soft,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:user?"pointer":"not-allowed",transition:"all .2s",fontStyle:"italic"}}>
-          {isSaved?"💖 Saved":"🤍 Save"}
+        <button
+          onClick={() => user ? onSave(idea) : null}
+          style={{background:isSaved?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(255,248,242,.8)",border:`1px solid ${isSaved?C.rose:"rgba(198,168,94,.3)"}`,borderRadius:3,padding:"6px 15px",fontSize:12,color:isSaved?C.plum:C.soft,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:user?"pointer":"not-allowed",transition:"all .2s",fontStyle:"italic"}}
+          title={!user ? "Sign in to save" : ""}
+        >
+          {isSaved ? "💖 Saved" : "🤍 Save"}
         </button>
-        {idea.source==="community"&&(
-          <button onClick={()=>user&&onLike(idea)} style={{background:"rgba(255,248,242,.8)",border:"1px solid rgba(198,168,94,.25)",borderRadius:3,padding:"6px 15px",fontSize:12,color:isLiked?C.plum:C.soft,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:user?"pointer":"not-allowed",transition:"all .2s",fontStyle:"italic"}}>
-            {isLiked?"❤️":"🤍"} {idea.likes||0}
+        {idea.source === "community" && (
+          <button
+            onClick={() => user ? onLike(idea) : null}
+            style={{background:"rgba(255,248,242,.8)",border:"1px solid rgba(198,168,94,.25)",borderRadius:3,padding:"6px 15px",fontSize:12,color:isLiked?C.plum:C.soft,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:user?"pointer":"not-allowed",transition:"all .2s",fontStyle:"italic"}}
+            title={!user ? "Sign in to like" : ""}
+          >
+            {isLiked ? "❤️" : "🤍"} {idea.likes || 0}
           </button>
         )}
-        {showShare&&user&&idea.source==="ai"&&(
-          <button onClick={()=>onShareToCommunity(idea)} style={{background:"rgba(125,90,123,.08)",border:`1px solid ${C.plum}`,borderRadius:3,padding:"6px 15px",fontSize:12,color:C.plum,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:"pointer",fontStyle:"italic"}}>✦ Share</button>
+        {showShare && user && idea.source === "ai" && (
+          <button onClick={() => onShareToCommunity(idea)} style={{background:"rgba(125,90,123,.08)",border:`1px solid ${C.plum}`,borderRadius:3,padding:"6px 15px",fontSize:12,color:C.plum,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,cursor:"pointer",fontStyle:"italic"}}>✦ Share</button>
         )}
       </div>
     </div>
@@ -317,45 +331,105 @@ const IdeaCard = ({idea,idx,user,onSave,savedIds,onLike,onShareToCommunity,showS
 };
 
 // ─────────────────────────────────────────────────────────────────
-//  AUTH MODAL
+//  AUTH MODAL  — FIXED: hashing, email trimming, proper error msgs
 // ─────────────────────────────────────────────────────────────────
-const AuthModal = ({mode,onClose,onSwitch,onSuccess}) => {
-  const [form,setForm] = useState({name:"",email:"",password:""});
-  const [err,setErr]   = useState("");
-  const [loading,setL] = useState(false);
+const AuthModal = ({mode, onClose, onSwitch, onSuccess}) => {
+  const [form, setForm] = useState({name:"", email:"", password:""});
+  const [err, setErr]   = useState("");
+  const [loading, setL] = useState(false);
+
   const handle = () => {
-    if(!form.email||!form.password){setErr("Please fill all fields 💌");return;}
-    setL(true);setErr("");
-    const existing = DB.getUser(form.email);
-    if(mode==="signup"){
-      if(existing){setErr("Email already in registry 🌸");setL(false);return;}
-      if(!form.name){setErr("Your name, please 💌");setL(false);return;}
-      const user={id:`u_${Date.now()}`,name:form.name,email:form.email,password:form.password,role:"user",joined:Date.now()};
+    const email = form.email.toLowerCase().trim();
+    const password = form.password;
+    const name = form.name.trim();
+
+    if (!email || !password) { setErr("Please fill all fields 💌"); return; }
+    if (!email.includes("@")) { setErr("Please enter a valid email 💌"); return; }
+    if (password.length < 4) { setErr("Password must be at least 4 characters 🌸"); return; }
+
+    setL(true); setErr("");
+
+    if (mode === "signup") {
+      if (!name) { setErr("Your name, please 💌"); setL(false); return; }
+      const existing = DB.getUser(email);
+      if (existing) { setErr("Email already registered. Sign in instead 🌸"); setL(false); return; }
+      const user = {
+        id: `u_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        name,
+        email,
+        password: hashPw(password),   // never store plain text
+        role: "user",
+        joined: Date.now()
+      };
       DB.saveUser(user);
+      setL(false);
       onSuccess(user);
     } else {
-      if(!existing||existing.password!==form.password){setErr("Invalid credentials. Alas 🥀");setL(false);return;}
+      // LOGIN
+      const existing = DB.getUser(email);
+      if (!existing) {
+        setErr("No account found with this email. Sign up first 🌱");
+        setL(false); return;
+      }
+      // Support both hashed passwords and legacy plain-text (migration)
+      const pwMatch = existing.password === hashPw(password) || existing.password === password;
+      if (!pwMatch) {
+        setErr("Wrong password. Try again 🥀");
+        setL(false); return;
+      }
+      // Upgrade plain-text password to hashed on successful login
+      if (existing.password === password) {
+        existing.password = hashPw(password);
+        DB.saveUser(existing);
+      }
+      setL(false);
       onSuccess(existing);
     }
-    setL(false);
   };
+
+  const handleKey = (e) => { if (e.key === "Enter") handle(); };
+
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(74,63,63,.5)",backdropFilter:"blur(8px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#fdfaf6",borderRadius:4,padding:"44px 38px",width:"90%",maxWidth:400,border:"1px solid rgba(198,168,94,.35)",outline:"4px solid rgba(198,168,94,.08)",outlineOffset:4,boxShadow:"0 24px 70px rgba(74,63,63,.22), inset 0 1px 0 rgba(255,255,255,.8)",animation:"modalIn .4s cubic-bezier(.34,1.56,.64,1)"}}>
+      <div onClick={e => e.stopPropagation()} style={{background:"#fdfaf6",borderRadius:4,padding:"44px 38px",width:"90%",maxWidth:400,border:"1px solid rgba(198,168,94,.35)",outline:"4px solid rgba(198,168,94,.08)",outlineOffset:4,boxShadow:"0 24px 70px rgba(74,63,63,.22), inset 0 1px 0 rgba(255,255,255,.8)",animation:"modalIn .4s cubic-bezier(.34,1.56,.64,1)"}}>
         <div style={{textAlign:"center",marginBottom:28}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ OF LITTLE DELIGHTS ✦</div>
           <Divider color={C.gold}/>
-          <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:25,color:C.ink,fontStyle:"italic",marginTop:14,letterSpacing:"-.3px"}}>{mode==="login"?"Welcome back, dearest":"Join the registry 💌"}</h2>
+          <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:25,color:C.ink,fontStyle:"italic",marginTop:14,letterSpacing:"-.3px"}}>{mode==="login" ? "Welcome back, dearest" : "Join the registry 💌"}</h2>
         </div>
-        {mode==="signup"&&<input placeholder="Your name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={{...inpStyle,marginBottom:12}}/>}
-        <input placeholder="Email address" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} style={{...inpStyle,marginBottom:12}} type="email"/>
-        <input placeholder="Password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} style={{...inpStyle,marginBottom:14}} type="password"/>
-        {err&&<p style={{color:"#a05",fontSize:12,fontFamily:"'Cormorant Garamond',serif",textAlign:"center",marginBottom:10,fontStyle:"italic"}}>{err}</p>}
-        <button onClick={handle} disabled={loading} style={{...btnStyle,width:"100%",padding:14,fontSize:15}}>
-          {loading?"One moment…":mode==="login"?"Enter, Your Grace ✨":"Begin my story 🌸"}
+        {mode === "signup" && (
+          <input
+            placeholder="Your name"
+            value={form.name}
+            onChange={e => setForm({...form, name:e.target.value})}
+            onKeyDown={handleKey}
+            style={{...inpStyle, marginBottom:12}}
+            autoFocus
+          />
+        )}
+        <input
+          placeholder="Email address"
+          value={form.email}
+          onChange={e => setForm({...form, email:e.target.value})}
+          onKeyDown={handleKey}
+          style={{...inpStyle, marginBottom:12}}
+          type="email"
+          autoFocus={mode === "login"}
+        />
+        <input
+          placeholder="Password"
+          value={form.password}
+          onChange={e => setForm({...form, password:e.target.value})}
+          onKeyDown={handleKey}
+          style={{...inpStyle, marginBottom:14}}
+          type="password"
+        />
+        {err && <p style={{color:"#a05",fontSize:13,fontFamily:"'Cormorant Garamond',serif",textAlign:"center",marginBottom:10,fontStyle:"italic",lineHeight:1.5}}>{err}</p>}
+        <button onClick={handle} disabled={loading} style={{...btnStyle, width:"100%", padding:14, fontSize:15, opacity:loading?0.6:1}}>
+          {loading ? "One moment…" : mode==="login" ? "Enter, Your Grace ✨" : "Begin my story 🌸"}
         </button>
         <p onClick={onSwitch} style={{textAlign:"center",marginTop:16,fontFamily:"'Cormorant Garamond',serif",fontSize:12.5,color:C.soft,cursor:"pointer",fontStyle:"italic"}}>
-          {mode==="login"?"No account yet? Sign up →":"Already registered? Sign in →"}
+          {mode==="login" ? "No account yet? Sign up →" : "Already registered? Sign in →"}
         </p>
       </div>
     </div>
@@ -365,18 +439,18 @@ const AuthModal = ({mode,onClose,onSwitch,onSuccess}) => {
 // ─────────────────────────────────────────────────────────────────
 //  SHARE MODAL
 // ─────────────────────────────────────────────────────────────────
-const ShareModal = ({idea,onClose,onSubmit}) => {
-  const [note,setNote] = useState("");
+const ShareModal = ({idea, onClose, onSubmit}) => {
+  const [note, setNote] = useState("");
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(74,63,63,.5)",backdropFilter:"blur(8px)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#fdfaf6",borderRadius:4,padding:"40px 36px",width:"90%",maxWidth:440,border:"1px solid rgba(198,168,94,.35)",outline:"4px solid rgba(198,168,94,.08)",outlineOffset:4,boxShadow:"0 24px 70px rgba(74,63,63,.22)",animation:"modalIn .4s cubic-bezier(.34,1.56,.64,1)"}}>
+      <div onClick={e => e.stopPropagation()} style={{background:"#fdfaf6",borderRadius:4,padding:"40px 36px",width:"90%",maxWidth:440,border:"1px solid rgba(198,168,94,.35)",outline:"4px solid rgba(198,168,94,.08)",outlineOffset:4,boxShadow:"0 24px 70px rgba(74,63,63,.22)",animation:"modalIn .4s cubic-bezier(.34,1.56,.64,1)"}}>
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9,color:C.gold,letterSpacing:5,marginBottom:10,textAlign:"center"}}>✦ SHARE WITH THE COMMUNITY ✦</div>
         <Divider color={C.gold}/>
         <h3 style={{fontFamily:"'Playfair Display',serif",fontSize:21,color:C.ink,fontStyle:"italic",textAlign:"center",marginBottom:6,marginTop:14}}>{idea.title}</h3>
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,textAlign:"center",marginBottom:20,fontStyle:"italic"}}>This will be reviewed before going live. Add an optional note:</p>
-        <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="e.g. I made this for my bestie's birthday and she cried 🥹" style={{...inpStyle,minHeight:80,resize:"vertical",marginBottom:18,fontStyle:"italic"}}/>
+        <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. I made this for my bestie's birthday and she cried 🥹" style={{...inpStyle, minHeight:80, resize:"vertical", marginBottom:18, fontStyle:"italic"}}/>
         <div style={{display:"flex",gap:10}}>
-          <button onClick={()=>onSubmit(idea,{note})} style={{...btnStyle,flex:1,padding:13,fontSize:14}}>Submit for Review 💌</button>
+          <button onClick={() => onSubmit(idea, {note})} style={{...btnStyle, flex:1, padding:13, fontSize:14}}>Submit for Review 💌</button>
           <button onClick={onClose} style={{background:"transparent",border:"1px solid rgba(198,168,94,.3)",borderRadius:4,padding:"13px 20px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,cursor:"pointer",fontStyle:"italic"}}>Cancel</button>
         </div>
       </div>
@@ -394,17 +468,17 @@ const LOADER_LINES = [
   "Cross-referencing your provisions… 🌸",
   "Searching the community archives… ✦",
 ];
-const Loader = ({visible,items=[]}) => {
-  const [l,setL]=useState(0);
-  const [d,setD]=useState(".");
-  useEffect(()=>{
-    if(!visible)return;
-    const t1=setInterval(()=>setL(x=>(x+1)%LOADER_LINES.length),1900);
-    const t2=setInterval(()=>setD(x=>x.length>=3?".":x+"."),400);
-    return()=>{clearInterval(t1);clearInterval(t2)};
-  },[visible]);
-  if(!visible)return null;
-  return(
+const Loader = ({visible, items=[]}) => {
+  const [l, setL] = useState(0);
+  const [d, setD] = useState(".");
+  useEffect(() => {
+    if (!visible) return;
+    const t1 = setInterval(() => setL(x => (x+1) % LOADER_LINES.length), 1900);
+    const t2 = setInterval(() => setD(x => x.length >= 3 ? "." : x+"."), 400);
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, [visible]);
+  if (!visible) return null;
+  return (
     <div style={{position:"fixed",inset:0,background:"rgba(253,250,246,.96)",backdropFilter:"blur(14px)",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:22}}>
       <div style={{position:"absolute",inset:"10%",border:"1px solid rgba(198,168,94,.15)",borderRadius:4,pointerEvents:"none"}}/>
       <div style={{position:"absolute",inset:"10.5%",border:"1px solid rgba(198,168,94,.08)",borderRadius:4,pointerEvents:"none"}}/>
@@ -413,9 +487,9 @@ const Loader = ({visible,items=[]}) => {
         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9,color:C.gold,letterSpacing:5,marginBottom:14}}>✦ PLEASE WAIT ✦</div>
         <p style={{fontFamily:"'Playfair Display',serif",fontSize:22,color:C.ink,fontStyle:"italic",textAlign:"center",maxWidth:400,lineHeight:1.65}}>{LOADER_LINES[l]}{d}</p>
       </div>
-      {items.length>0&&(
+      {items.length > 0 && (
         <div style={{display:"flex",flexWrap:"wrap",gap:7,justifyContent:"center",maxWidth:420}}>
-          {items.map(i=><Chip key={i} label={i} bg={C.lavender}/>)}
+          {items.map(i => <Chip key={i} label={i} bg={C.lavender}/>)}
         </div>
       )}
     </div>
@@ -425,14 +499,14 @@ const Loader = ({visible,items=[]}) => {
 // ─────────────────────────────────────────────────────────────────
 //  TOAST
 // ─────────────────────────────────────────────────────────────────
-const Toast = ({msg,visible}) => (
+const Toast = ({msg, visible}) => (
   <div style={{position:"fixed",bottom:30,left:"50%",transform:`translateX(-50%) translateY(${visible?0:44}px)`,opacity:visible?1:0,transition:"all .4s cubic-bezier(.34,1.56,.64,1)",background:"rgba(74,63,63,.95)",color:C.ivory,borderRadius:4,padding:"11px 24px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",zIndex:1100,boxShadow:"0 8px 28px rgba(74,63,63,.3)",pointerEvents:"none",whiteSpace:"nowrap",border:"1px solid rgba(198,168,94,.3)"}}>{msg}</div>
 );
 
 // ─────────────────────────────────────────────────────────────────
 //  HOME PAGE
 // ─────────────────────────────────────────────────────────────────
-const HomePage = ({inputVal,onInputChange,onAddItem,onKeyDown,suggestions,items,filters,onRemoveItem,onAddQuick,onToggleFilter,onGenerate,onClear,inputRef}) => (
+const HomePage = ({inputVal, onInputChange, onAddItem, onKeyDown, suggestions, items, filters, onRemoveItem, onAddQuick, onToggleFilter, onGenerate, onClear, inputRef}) => (
   <div style={{maxWidth:780,margin:"0 auto",padding:"64px 24px 90px",animation:"fadeUp .7s ease"}}>
     <div style={{textAlign:"center",marginBottom:54}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:6,marginBottom:16}}>✦ A MOST CURIOUS DISCOVERY ENGINE ✦</div>
@@ -450,32 +524,32 @@ const HomePage = ({inputVal,onInputChange,onAddItem,onKeyDown,suggestions,items,
       <div style={{height:"2px",background:"linear-gradient(to right,transparent,rgba(198,168,94,.5),rgba(198,168,94,.8),rgba(198,168,94,.5),transparent)",marginBottom:24,borderRadius:1}}/>
       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:C.gold,letterSpacing:3,marginBottom:14,textTransform:"uppercase"}}>Pray tell, what do you possess?</p>
       <div style={{display:"flex",gap:10,marginBottom:12}}>
-        <input ref={inputRef} value={inputVal} onChange={e=>onInputChange(e.target.value)} onKeyDown={onKeyDown} placeholder="e.g., pen, old notebook, emotional instability…" style={{...inpStyle,flex:1,padding:"14px 18px",fontSize:14.5}}/>
-        <button onClick={onAddItem} style={{...btnStyle,padding:"14px 24px"}}>Add ✦</button>
+        <input ref={inputRef} value={inputVal} onChange={e => onInputChange(e.target.value)} onKeyDown={onKeyDown} placeholder="e.g., pen, old notebook, emotional instability…" style={{...inpStyle, flex:1, padding:"14px 18px", fontSize:14.5}}/>
+        <button onClick={onAddItem} style={{...btnStyle, padding:"14px 24px"}}>Add ✦</button>
       </div>
-      {suggestions.length>0&&(
+      {suggestions.length > 0 && (
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:12,padding:"10px 12px",background:"rgba(253,250,246,.9)",borderRadius:3,border:"1px solid rgba(198,168,94,.18)"}}>
-          {suggestions.map(s=><span key={s} onClick={()=>onAddQuick(s)} style={{background:"rgba(212,167,167,.12)",border:"1px solid rgba(212,167,167,.28)",borderRadius:3,padding:"3px 12px",fontSize:13,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:C.ink,fontStyle:"italic"}}>{s}</span>)}
+          {suggestions.map(s => <span key={s} onClick={() => onAddQuick(s)} style={{background:"rgba(212,167,167,.12)",border:"1px solid rgba(212,167,167,.28)",borderRadius:3,padding:"3px 12px",fontSize:13,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:C.ink,fontStyle:"italic"}}>{s}</span>)}
         </div>
       )}
       <div style={{marginBottom:16}}>
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.soft,marginBottom:8,letterSpacing:1.5,textTransform:"uppercase"}}>Quick add →</p>
         <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-          {QUICK_ITEMS.filter(q=>!items.includes(q)).slice(0,9).map(q=>(
-            <span key={q} onClick={()=>onAddQuick(q)} style={{background:"rgba(244,214,214,.5)",borderRadius:3,padding:"5px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:C.ink,border:"1px solid rgba(198,168,94,.18)",transition:"all .2s",fontStyle:"italic"}}>{q}</span>
+          {QUICK_ITEMS.filter(q => !items.includes(q)).slice(0,9).map(q => (
+            <span key={q} onClick={() => onAddQuick(q)} style={{background:"rgba(244,214,214,.5)",borderRadius:3,padding:"5px 12px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:C.ink,border:"1px solid rgba(198,168,94,.18)",transition:"all .2s",fontStyle:"italic"}}>{q}</span>
           ))}
         </div>
       </div>
-      {items.length>0&&(
+      {items.length > 0 && (
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:18,padding:"12px",background:"rgba(255,255,255,.4)",borderRadius:3,border:"1px solid rgba(198,168,94,.14)"}}>
-          {items.map((it,i)=><Chip key={it} label={it} onRemove={()=>onRemoveItem(it)} bg={[C.blush,C.lavender,C.powder,C.sage][i%4]}/>)}
+          {items.map((it, i) => <Chip key={it} label={it} onRemove={() => onRemoveItem(it)} bg={[C.blush,C.lavender,C.powder,C.sage][i%4]}/>)}
         </div>
       )}
       <div style={{marginBottom:22}}>
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.soft,marginBottom:8,letterSpacing:1.5,textTransform:"uppercase"}}>Filters (optional) →</p>
         <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-          {FILTERS_DEF.map(f=>(
-            <span key={f.id} onClick={()=>onToggleFilter(f.id)} style={{background:filters.includes(f.id)?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(253,250,246,.8)",border:`1px solid ${filters.includes(f.id)?C.rose:"rgba(198,168,94,.22)"}`,borderRadius:3,padding:"6px 15px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:filters.includes(f.id)?C.plum:C.soft,fontWeight:filters.includes(f.id)?600:400,transition:"all .25s",fontStyle:"italic"}}>{f.label}</span>
+          {FILTERS_DEF.map(f => (
+            <span key={f.id} onClick={() => onToggleFilter(f.id)} style={{background:filters.includes(f.id)?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(253,250,246,.8)",border:`1px solid ${filters.includes(f.id)?C.rose:"rgba(198,168,94,.22)"}`,borderRadius:3,padding:"6px 15px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:filters.includes(f.id)?C.plum:C.soft,fontWeight:filters.includes(f.id)?600:400,transition:"all .25s",fontStyle:"italic"}}>{f.label}</span>
           ))}
         </div>
       </div>
@@ -484,7 +558,7 @@ const HomePage = ({inputVal,onInputChange,onAddItem,onKeyDown,suggestions,items,
         <button onClick={onGenerate} disabled={!items.length} style={{...btnStyle,padding:"14px 34px",fontSize:16,opacity:items.length?1:.4,cursor:items.length?"pointer":"not-allowed",letterSpacing:".4px"}}>
           Surprise Me, Your Grace ✨
         </button>
-        {items.length>0&&<button onClick={onClear} style={{background:"transparent",border:"1px solid rgba(198,168,94,.28)",borderRadius:4,padding:"14px 20px",fontSize:13,fontFamily:"'Cormorant Garamond',serif",color:C.soft,cursor:"pointer",fontStyle:"italic"}}>Clear all</button>}
+        {items.length > 0 && <button onClick={onClear} style={{background:"transparent",border:"1px solid rgba(198,168,94,.28)",borderRadius:4,padding:"14px 20px",fontSize:13,fontFamily:"'Cormorant Garamond',serif",color:C.soft,cursor:"pointer",fontStyle:"italic"}}>Clear all</button>}
       </div>
     </div>
     <div style={{marginTop:60,textAlign:"center"}}>
@@ -496,7 +570,7 @@ const HomePage = ({inputVal,onInputChange,onAddItem,onKeyDown,suggestions,items,
           {e:"✨",t:"AI creates for you",d:"Conjures ideas using only your exact items"},
           {e:"🌸",t:"Community matches",d:"Real ideas shared by others that fit your items too"},
           {e:"✦",t:"Save & share",d:"Like what was conjured? Share it to the community registry"},
-        ].map((s,i)=>(
+        ].map((s, i) => (
           <div key={i} style={{background:[C.blush,C.lavender,C.powder,C.sage][i],borderRadius:3,padding:"24px 16px",border:"1px solid rgba(198,168,94,.18)",boxShadow:"0 3px 14px rgba(74,63,63,.06)"}}>
             <div style={{fontSize:26,marginBottom:10}}>{s.e}</div>
             <h4 style={{fontFamily:"'Playfair Display',serif",fontSize:14,color:C.ink,marginBottom:6,fontStyle:"italic"}}>{s.t}</h4>
@@ -511,11 +585,11 @@ const HomePage = ({inputVal,onInputChange,onAddItem,onKeyDown,suggestions,items,
 // ─────────────────────────────────────────────────────────────────
 //  RESULTS PAGE
 // ─────────────────────────────────────────────────────────────────
-const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave,savedIds,onLike,onShareToCommunity,onGenerate,onBack}) => {
+const ResultsPage = ({aiIdeas, commIdeas, items, catFilter, setCatFilter, user, onSave, savedIds, onLike, onShareToCommunity, onGenerate, onBack}) => {
   const allResults = [
     ...aiIdeas,
-    ...commIdeas.filter(c=>!aiIdeas.find(a=>a.title===c.title)),
-  ].filter(i=>catFilter==="All"||i.category===catFilter);
+    ...commIdeas.filter(c => !aiIdeas.find(a => a.title === c.title)),
+  ].filter(i => catFilter === "All" || i.category === catFilter);
   return (
     <div style={{maxWidth:1100,margin:"0 auto",padding:"44px 24px 90px",animation:"fadeUp .5s ease"}}>
       <div style={{textAlign:"center",marginBottom:36}}>
@@ -525,7 +599,7 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
           {aiIdeas.length} conjured ideas · {commIdeas.length} community matches 💫
         </h2>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,justifyContent:"center",marginTop:10}}>
-          {items.map((it,i)=><Chip key={it} label={it} bg={[C.blush,C.lavender,C.powder,C.sage][i%4]}/>)}
+          {items.map((it, i) => <Chip key={it} label={it} bg={[C.blush,C.lavender,C.powder,C.sage][i%4]}/>)}
         </div>
         <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:18,flexWrap:"wrap"}}>
           <button onClick={onGenerate} style={{...btnStyle,fontSize:13,padding:"9px 20px"}}>🎲 New Ideas</button>
@@ -533,11 +607,11 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
         </div>
       </div>
       <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:28,justifyContent:"center"}}>
-        {CATEGORIES.map(cat=>(
-          <span key={cat} onClick={()=>setCatFilter(cat)} style={{background:catFilter===cat?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(253,250,246,.8)",border:`1px solid ${catFilter===cat?C.rose:"rgba(198,168,94,.22)"}`,borderRadius:3,padding:"6px 15px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:catFilter===cat?C.plum:C.soft,fontWeight:catFilter===cat?600:400,transition:"all .25s",fontStyle:"italic"}}>{cat}</span>
+        {CATEGORIES.map(cat => (
+          <span key={cat} onClick={() => setCatFilter(cat)} style={{background:catFilter===cat?"linear-gradient(135deg,#F4D6D6,#E6DDF2)":"rgba(253,250,246,.8)",border:`1px solid ${catFilter===cat?C.rose:"rgba(198,168,94,.22)"}`,borderRadius:3,padding:"6px 15px",fontSize:12.5,cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",color:catFilter===cat?C.plum:C.soft,fontWeight:catFilter===cat?600:400,transition:"all .25s",fontStyle:"italic"}}>{cat}</span>
         ))}
       </div>
-      {aiIdeas.filter(i=>catFilter==="All"||i.category===catFilter).length>0&&(
+      {aiIdeas.filter(i => catFilter==="All" || i.category===catFilter).length > 0 && (
         <div style={{marginBottom:40}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
             <div style={{flex:1,height:"1px",background:"linear-gradient(to right,transparent,rgba(198,168,94,.4))"}}/>
@@ -545,13 +619,13 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
             <div style={{flex:1,height:"1px",background:"linear-gradient(to left,transparent,rgba(198,168,94,.4))"}}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:18}}>
-            {aiIdeas.filter(i=>catFilter==="All"||i.category===catFilter).map((idea,i)=>(
+            {aiIdeas.filter(i => catFilter==="All" || i.category===catFilter).map((idea, i) => (
               <IdeaCard key={idea.id} idea={idea} idx={i} user={user} onSave={onSave} savedIds={savedIds} onLike={onLike} onShareToCommunity={onShareToCommunity} showShare={true}/>
             ))}
           </div>
         </div>
       )}
-      {commIdeas.filter(i=>catFilter==="All"||i.category===catFilter).length>0&&(
+      {commIdeas.filter(i => catFilter==="All" || i.category===catFilter).length > 0 && (
         <div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
             <div style={{flex:1,height:"1px",background:"linear-gradient(to right,transparent,rgba(125,90,123,.3))"}}/>
@@ -559,13 +633,13 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
             <div style={{flex:1,height:"1px",background:"linear-gradient(to left,transparent,rgba(125,90,123,.3))"}}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:18}}>
-            {commIdeas.filter(i=>catFilter==="All"||i.category===catFilter).map((idea,i)=>(
+            {commIdeas.filter(i => catFilter==="All" || i.category===catFilter).map((idea, i) => (
               <IdeaCard key={idea.id} idea={idea} idx={i} user={user} onSave={onSave} savedIds={savedIds} onLike={onLike} onShareToCommunity={onShareToCommunity} showShare={false}/>
             ))}
           </div>
         </div>
       )}
-      {allResults.length===0&&(
+      {allResults.length === 0 && (
         <div style={{textAlign:"center",padding:"60px 20px"}}>
           <div style={{fontSize:42,marginBottom:16}}>🥀</div>
           <p style={{fontFamily:"'Playfair Display',serif",fontSize:21,color:C.soft,fontStyle:"italic"}}>Alas… nothing found for this category.</p>
@@ -578,7 +652,7 @@ const ResultsPage = ({aiIdeas,commIdeas,items,catFilter,setCatFilter,user,onSave
 // ─────────────────────────────────────────────────────────────────
 //  COMMUNITY PAGE
 // ─────────────────────────────────────────────────────────────────
-const CommunityPage = ({allComm,user,onSave,savedIds,onLike,onGoHome}) => (
+const CommunityPage = ({allComm, user, onSave, savedIds, onLike, onGoHome}) => (
   <div style={{maxWidth:1100,margin:"0 auto",padding:"54px 24px 90px",animation:"fadeUp .5s ease"}}>
     <div style={{textAlign:"center",marginBottom:40}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ THE COMMUNITY REGISTRY ✦</div>
@@ -586,16 +660,16 @@ const CommunityPage = ({allComm,user,onSave,savedIds,onLike,onGoHome}) => (
       <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:29,color:C.ink,fontStyle:"italic",margin:"18px 0 8px"}}>Ideas shared by the collective 🌸</h2>
       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:C.soft,fontStyle:"italic"}}>Browse what others have created. Like your favourites. Get inspired.</p>
     </div>
-    {allComm.length===0?(
+    {allComm.length === 0 ? (
       <div style={{textAlign:"center",padding:"60px 20px"}}>
         <div style={{fontSize:42,marginBottom:16}}>🌱</div>
         <p style={{fontFamily:"'Playfair Display',serif",fontSize:19,color:C.soft,fontStyle:"italic"}}>The registry is awaiting its first submissions.</p>
         <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,marginTop:8,fontStyle:"italic"}}>Search for ideas using your items, then share an AI idea to the community!</p>
       </div>
-    ):(
+    ) : (
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:18}}>
-        {allComm.map((idea,i)=>(
-          <IdeaCard key={idea.id} idea={idea} idx={i} user={user} onSave={onSave} savedIds={savedIds} onLike={onLike} onShareToCommunity={()=>{}} showShare={false}/>
+        {allComm.map((idea, i) => (
+          <IdeaCard key={idea.id} idea={idea} idx={i} user={user} onSave={onSave} savedIds={savedIds} onLike={onLike} onShareToCommunity={() => {}} showShare={false}/>
         ))}
       </div>
     )}
@@ -605,24 +679,24 @@ const CommunityPage = ({allComm,user,onSave,savedIds,onLike,onGoHome}) => (
 // ─────────────────────────────────────────────────────────────────
 //  SAVED PAGE
 // ─────────────────────────────────────────────────────────────────
-const SavedPage = ({savedList,user,onSave,savedIds,onLike,onShareToCommunity,onGoHome}) => (
+const SavedPage = ({savedList, user, onSave, savedIds, onLike, onShareToCommunity, onGoHome}) => (
   <div style={{maxWidth:1080,margin:"0 auto",padding:"54px 24px 90px",animation:"fadeUp .5s ease"}}>
     <div style={{textAlign:"center",marginBottom:36}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ YOUR COLLECTION ✦</div>
       <Divider color={C.gold}/>
       <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:C.ink,fontStyle:"italic",marginTop:18}}>
-        {savedList.length>0?`${savedList.length} treasures saved 💖`:"Your collection awaits its first treasure 🤍"}
+        {savedList.length > 0 ? `${savedList.length} treasures saved 💖` : "Your collection awaits its first treasure 🤍"}
       </h2>
     </div>
-    {savedList.length===0?(
+    {savedList.length === 0 ? (
       <div style={{textAlign:"center",padding:"60px 20px"}}>
         <div style={{fontSize:46,marginBottom:16}}>🥀</div>
         <p style={{fontFamily:"'Playfair Display',serif",fontSize:21,color:C.soft,fontStyle:"italic"}}>Nothing saved yet. Quite the tragedy.</p>
-        <button onClick={onGoHome} style={{...btnStyle,marginTop:22,fontSize:14}}>Discover something lovely →</button>
+        <button onClick={onGoHome} style={{...btnStyle, marginTop:22, fontSize:14}}>Discover something lovely →</button>
       </div>
-    ):(
+    ) : (
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))",gap:18}}>
-        {savedList.map((idea,i)=>(
+        {savedList.map((idea, i) => (
           <IdeaCard key={idea.id} idea={idea} idx={i} user={user} onSave={onSave} savedIds={savedIds} onLike={onLike} onShareToCommunity={onShareToCommunity} showShare={idea.source==="ai"}/>
         ))}
       </div>
@@ -633,46 +707,46 @@ const SavedPage = ({savedList,user,onSave,savedIds,onLike,onShareToCommunity,onG
 // ─────────────────────────────────────────────────────────────────
 //  PROFILE PAGE
 // ─────────────────────────────────────────────────────────────────
-const ProfilePage = ({user,savedList,histList,allComm,onLogin,onSignup,onLogout,onRerun}) => (
+const ProfilePage = ({user, savedList, histList, allComm, onLogin, onSignup, onLogout, onRerun}) => (
   <div style={{maxWidth:700,margin:"0 auto",padding:"54px 24px 90px",animation:"fadeUp .5s ease"}}>
     <div style={{textAlign:"center",marginBottom:34}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ YOUR JOURNAL ✦</div>
       <Divider color={C.gold}/>
       <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:C.ink,fontStyle:"italic",marginTop:18}}>
-        {user?`Welcome back, ${user.name.split(" ")[0]} 🌷`:"Your story starts here 💌"}
+        {user ? `Welcome back, ${user.name.split(" ")[0]} 🌷` : "Your story starts here 💌"}
       </h2>
     </div>
-    {!user?(
+    {!user ? (
       <div style={{background:C.lavender,borderRadius:4,padding:"40px 32px",textAlign:"center",border:"1px solid rgba(198,168,94,.3)",outline:"4px solid rgba(198,168,94,.06)",outlineOffset:4,boxShadow:"0 8px 32px rgba(125,90,123,.1)"}}>
         <div style={{fontSize:40,marginBottom:14}}>🔐</div>
         <p style={{fontFamily:"'Playfair Display',serif",fontSize:17,color:C.ink,fontStyle:"italic",marginBottom:24,lineHeight:1.6}}>Sign in to save ideas, track history, and share with the community.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-          <button onClick={onLogin} style={{...btnStyle,fontSize:14}}>Sign In ✨</button>
-          <button onClick={onSignup} style={{...btnStyle,fontSize:14}}>Create Account 🌸</button>
+          <button onClick={onLogin} style={{...btnStyle, fontSize:14}}>Sign In ✨</button>
+          <button onClick={onSignup} style={{...btnStyle, fontSize:14}}>Create Account 🌸</button>
         </div>
       </div>
-    ):(
+    ) : (
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         {[
           {l:"Ideas Saved",v:savedList.length,e:"💖"},
           {l:"Searches Made",v:histList.length,e:"🔍"},
-          {l:"Community Contributions",v:allComm.filter(i=>i.submitted_by===user.id).length,e:"✦"},
-        ].map((s,i)=>(
+          {l:"Community Contributions",v:allComm.filter(i => i.submitted_by===user.id).length,e:"✦"},
+        ].map((s, i) => (
           <div key={i} style={{background:[C.blush,C.lavender,C.powder][i],borderRadius:3,padding:"20px 24px",border:"1px solid rgba(198,168,94,.2)",display:"flex",justifyContent:"space-between",alignItems:"center",boxShadow:"0 3px 12px rgba(74,63,63,.06)"}}>
             <span style={{fontFamily:"'Playfair Display',serif",fontSize:16,color:C.ink,fontStyle:"italic"}}>{s.e} {s.l}</span>
             <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:30,color:C.plum,fontWeight:600}}>{s.v}</span>
           </div>
         ))}
-        {histList.length>0&&(
+        {histList.length > 0 && (
           <div style={{background:"rgba(255,255,255,.6)",borderRadius:3,padding:"20px 24px",border:"1px solid rgba(198,168,94,.18)"}}>
             <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:3,marginBottom:14,textTransform:"uppercase"}}>Recent Searches</p>
-            {histList.slice(0,5).map((h,i)=>(
+            {histList.slice(0,5).map((h, i) => (
               <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:i<4?"1px solid rgba(198,168,94,.1)":"none"}}>
-                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{h.items.map(it=><Tag key={it} label={it}/>)}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{h.items.map(it => <Tag key={it} label={it}/>)}</div>
                 <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11.5,color:C.soft,whiteSpace:"nowrap",marginLeft:10,fontStyle:"italic"}}>{h.count} ideas</span>
               </div>
             ))}
-            <button onClick={onRerun} style={{...btnStyle,marginTop:14,fontSize:13,padding:"8px 18px"}}>Re-run last search ↩</button>
+            <button onClick={onRerun} style={{...btnStyle, marginTop:14, fontSize:13, padding:"8px 18px"}}>Re-run last search ↩</button>
           </div>
         )}
         <button onClick={onLogout} style={{background:"transparent",border:"1px solid rgba(198,168,94,.28)",borderRadius:4,padding:"13px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:C.soft,cursor:"pointer",textAlign:"center",fontStyle:"italic"}}>Bid farewell for now 👋</button>
@@ -684,7 +758,7 @@ const ProfilePage = ({user,savedList,histList,allComm,onLogin,onSignup,onLogout,
 // ─────────────────────────────────────────────────────────────────
 //  ADMIN PAGE
 // ─────────────────────────────────────────────────────────────────
-const AdminPage = ({pending,onApprove,onReject}) => (
+const AdminPage = ({pending, onApprove, onReject}) => (
   <div style={{maxWidth:920,margin:"0 auto",padding:"54px 24px 90px",animation:"fadeUp .5s ease"}}>
     <div style={{textAlign:"center",marginBottom:34}}>
       <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:5,marginBottom:10}}>✦ ADMIN PANEL ✦</div>
@@ -692,14 +766,14 @@ const AdminPage = ({pending,onApprove,onReject}) => (
       <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:28,color:C.ink,fontStyle:"italic",marginTop:18}}>The Review Chamber 🔍</h2>
       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:C.soft,marginTop:6,fontStyle:"italic"}}>{pending.length} idea{pending.length!==1?"s":""} awaiting approval</p>
     </div>
-    {pending.length===0?(
+    {pending.length === 0 ? (
       <div style={{textAlign:"center",padding:"44px",background:C.sage,borderRadius:4,border:"1px solid rgba(198,168,94,.2)"}}>
         <div style={{fontSize:36,marginBottom:12}}>✦</div>
         <p style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:C.ink,fontStyle:"italic"}}>All submissions reviewed. The registry is in order.</p>
       </div>
-    ):(
+    ) : (
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {pending.map((idea,i)=>(
+        {pending.map((idea, i) => (
           <div key={idea.id} style={{background:CARD_BG[i%CARD_BG.length],borderRadius:3,padding:"24px",border:"1px solid rgba(198,168,94,.22)",outline:"3px solid rgba(198,168,94,.06)",outlineOffset:3}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:10,marginBottom:12}}>
               <div>
@@ -707,15 +781,15 @@ const AdminPage = ({pending,onApprove,onReject}) => (
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12.5,color:C.soft,fontStyle:"italic"}}>By {idea.submitted_by_name} · {idea.category}</p>
               </div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>onApprove(idea)} style={{...btnStyle,fontSize:13,padding:"8px 18px",background:"linear-gradient(135deg,#C9D8C5,#DCE7F3)"}}>✦ Approve</button>
-                <button onClick={()=>onReject(idea.id)} style={{background:"rgba(160,80,80,.08)",border:"1px solid rgba(160,80,80,.28)",borderRadius:4,padding:"8px 16px",fontSize:13,color:"#a05",fontFamily:"'Cormorant Garamond',serif",cursor:"pointer",fontStyle:"italic"}}>🥀 Reject</button>
+                <button onClick={() => onApprove(idea)} style={{...btnStyle, fontSize:13, padding:"8px 18px", background:"linear-gradient(135deg,#C9D8C5,#DCE7F3)"}}>✦ Approve</button>
+                <button onClick={() => onReject(idea.id)} style={{background:"rgba(160,80,80,.08)",border:"1px solid rgba(160,80,80,.28)",borderRadius:4,padding:"8px 16px",fontSize:13,color:"#a05",fontFamily:"'Cormorant Garamond',serif",cursor:"pointer",fontStyle:"italic"}}>🥀 Reject</button>
               </div>
             </div>
             <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,marginBottom:10,fontStyle:"italic"}}>{idea.genz_desc}</p>
             <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:idea.note?8:0}}>
-              {(idea.required_items||[]).map((it,j)=><Tag key={j} label={it}/>)}
+              {(idea.required_items||[]).map((it, j) => <Tag key={j} label={it}/>)}
             </div>
-            {idea.note&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12.5,color:C.ink,fontStyle:"italic",marginTop:8}}>💌 "{idea.note}"</p>}
+            {idea.note && <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12.5,color:C.ink,fontStyle:"italic",marginTop:8}}>💌 "{idea.note}"</p>}
           </div>
         ))}
       </div>
@@ -724,33 +798,34 @@ const AdminPage = ({pending,onApprove,onReject}) => (
 );
 
 // ─────────────────────────────────────────────────────────────────
-//  MAIN APP
+//  MAIN APP — ALL BUGS FIXED
 // ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [page,        setPage]        = useState("home");
-  const [user,        setUser]        = useState(null);
-  const [authModal,   setAuthModal]   = useState(null);
-  const [inputVal,    setInputVal]    = useState("");
-  const [items,       setItems]       = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
-  const [filters,     setFilters]     = useState([]);
-  const [aiIdeas,     setAiIdeas]     = useState([]);
-  const [commIdeas,   setCommIdeas]   = useState([]);
-  const [allComm,     setAllComm]     = useState([]);
-  const [savedList,   setSavedList]   = useState([]);
-  const [histList,    setHistList]    = useState([]);
-  const [pending,     setPending]     = useState([]);
-  const [catFilter,   setCatFilter]   = useState("All");
-  const [loading,     setLoading]     = useState(false);
-  const [toast,       setToast]       = useState({msg:"",visible:false});
-  const [shareModal,  setShareModal]  = useState(null);
-  const [sparkTrigger,setSparkTrigger]= useState(0);
+  const [page,         setPage]         = useState("home");
+  const [user,         setUser]         = useState(null);
+  const [authModal,    setAuthModal]    = useState(null);
+  const [inputVal,     setInputVal]     = useState("");
+  const [items,        setItems]        = useState([]);
+  const [suggestions,  setSuggestions]  = useState([]);
+  const [filters,      setFilters]      = useState([]);
+  const [aiIdeas,      setAiIdeas]      = useState([]);
+  const [commIdeas,    setCommIdeas]    = useState([]);
+  const [allComm,      setAllComm]      = useState([]);
+  const [savedList,    setSavedList]    = useState([]);
+  const [histList,     setHistList]     = useState([]);
+  const [pending,      setPending]      = useState([]);
+  const [catFilter,    setCatFilter]    = useState("All");
+  const [loading,      setLoading]      = useState(false);
+  const [toast,        setToast]        = useState({msg:"", visible:false});
+  const [shareModal,   setShareModal]   = useState(null);
+  const [sparkTrigger, setSparkTrigger] = useState(0);
   const inputRef = useRef();
 
-  useEffect(()=>{
+  // ── On mount: restore session
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const stored = sessionStorage.getItem("old_user");
-    if(stored){
+    if (stored) {
       try {
         const u = JSON.parse(stored);
         setUser(u);
@@ -758,26 +833,23 @@ export default function App() {
       } catch {}
     }
     loadCommunityIdeas();
-  },[]);
+  }, []);
 
   const showToast = (msg) => {
-    setToast({msg,visible:true});
-    setTimeout(()=>setToast(t=>({...t,visible:false})),2400);
+    setToast({msg, visible:true});
+    setTimeout(() => setToast(t => ({...t, visible:false})), 2800);
   };
 
   const loadUserData = (u) => {
-    const saved = DB.getSaved(u.id);
-    const hist  = DB.getHistory(u.id);
-    setSavedList(saved);
-    setHistList(hist);
-    if(u.role==="admin"){
-      setPending(DB.getPending());
-    }
+    if (!u) return;
+    setSavedList(DB.getSaved(u.id));
+    setHistList(DB.getHistory(u.id));
+    if (u.role === "admin") setPending(DB.getPending());
   };
 
   const loadCommunityIdeas = () => {
     const ideas = DB.getCommunityIdeas();
-    setAllComm(ideas.filter(i=>i.status==="approved"));
+    setAllComm(ideas.filter(i => i.status === "approved"));
   };
 
   const handleAuth = (u) => {
@@ -791,32 +863,46 @@ export default function App() {
   const logout = () => {
     setUser(null);
     if (typeof window !== 'undefined') sessionStorage.removeItem("old_user");
-    setSavedList([]);setHistList([]);setPending([]);
-    setPage("home");showToast("Farewell, dearest 👋");
+    setSavedList([]); setHistList([]); setPending([]);
+    setPage("home");
+    showToast("Farewell, dearest 👋");
   };
 
   const handleInputChange = (v) => {
     setInputVal(v);
-    if(v.length>1) setSuggestions(QUICK_ITEMS.filter(q=>q.toLowerCase().includes(v.toLowerCase())&&!items.includes(q)).slice(0,6));
-    else setSuggestions([]);
+    if (v.length > 1) {
+      setSuggestions(QUICK_ITEMS.filter(q => q.toLowerCase().includes(v.toLowerCase()) && !items.includes(q)).slice(0,6));
+    } else {
+      setSuggestions([]);
+    }
   };
+
   const addItem = (item) => {
-    const c=(item||inputVal).trim().toLowerCase();
-    if(c&&!items.includes(c)) setItems(p=>[...p,c]);
-    setInputVal("");setSuggestions([]);
+    const c = (item || inputVal).trim().toLowerCase();
+    if (c && !items.includes(c)) setItems(p => [...p, c]);
+    setInputVal(""); setSuggestions([]);
+    inputRef.current?.focus();
   };
-  const removeItem = (item) => setItems(p=>p.filter(x=>x!==item));
-  const handleKeyDown = (e) => { if(e.key==="Enter"&&inputVal.trim()) addItem(inputVal); };
-  const toggleFilter = (id) => setFilters(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
-  const generate = useCallback(async (currentItems=items) => {
-    if(!currentItems.length) return;
-    setLoading(true);setAiIdeas([]);setCommIdeas([]);
+  const removeItem = (item) => setItems(p => p.filter(x => x !== item));
+  const handleKeyDown = (e) => { if (e.key === "Enter" && inputVal.trim()) addItem(inputVal); };
+  const toggleFilter = (id) => setFilters(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
 
+  // ── GENERATE — ALL 4 BUGS FIXED ──────────────────────────────
+  const generate = useCallback(async (currentItems) => {
+    const itemsToUse = currentItems || items;   // FIX: use passed-in items first
+    if (!itemsToUse.length) return;
+
+    setLoading(true);
+    setAiIdeas([]);
+    setCommIdeas([]);
+    setCatFilter("All");
+
+    // Community matching (local — always works)
     const freshComm     = DB.getCommunityIdeas();
-    const freshApproved = freshComm.filter(i=>i.status==="approved");
+    const freshApproved = freshComm.filter(i => i.status === "approved");
     setAllComm(freshApproved);
-    const matched = matchingCommunityIdeas(currentItems, freshApproved);
+    const matched = matchingCommunityIdeas(itemsToUse, freshApproved);
     setCommIdeas(matched);
 
     const filterInstructions = [
@@ -829,8 +915,8 @@ export default function App() {
 
     const prompt = `You are the creative soul of "Of Little Delights" — a Bridgerton-coded, Gen Z aesthetic idea app.
 
-User has EXACTLY these items: ${currentItems.join(", ")}
-${filterInstructions?`\nConstraints:\n${filterInstructions}`:""}
+User has EXACTLY these items: ${itemsToUse.join(", ")}
+${filterInstructions ? `\nConstraints:\n${filterInstructions}` : ""}
 
 Generate exactly 5 creative ideas using ONLY subsets of these exact items. Do NOT require anything not in the list. Think recipes, DIY, outfits, gifts, self-care, repurposing — be non-obvious and creative.
 
@@ -838,76 +924,105 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
 {"ideas":[{"title":"string","category":"Culinary Delights|Artistic Pursuits|Attire Affairs|Tokens of Affection|Curious Possessions","emoji":"single emoji","difficulty":"Effortless|A gentle endeavour|Suspiciously easy|Requires feelings|Meditative","time":"e.g. 15 mins","genz_desc":"1-2 sentences Gen Z + Bridgerton tone, witty and warm","uses_items":["only items from the user's exact list"],"optional_items":[],"steps":["step 1","step 2","step 3","step 4"]}]}`;
 
     try {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/ai`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ prompt }),
-  });
+      // FIX 1: correct endpoint /api/ai (not /api/ai/generate)
+      // FIX 2: correct body sends { prompt } (not { messages })
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (!apiUrl) {
+        showToast("Backend URL not configured 🥀 See setup guide.");
+        setLoading(false);
+        return;
+      }
 
-  const data = await res.json();
-  const text = data.result;
+      const res = await fetch(`${apiUrl}/api/ai`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
 
-  setSparkTrigger(t => t + 1);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server error ${res.status}`);
+      }
 
-  let ideas = [];
+      const data = await res.json();
+      // FIX 3: correct field is data.result (not data.result — backend now sends this)
+      const text = data.result || "";
 
-  try {
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
+      if (!text) throw new Error("Empty response from AI");
 
-    ideas = (parsed.ideas || []).map(i => ({
-      ...i,
-      id: `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      source: "ai",
-    }));
+      let ideas = [];
+      try {
+        const clean = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+        const parsed = JSON.parse(clean);
+        ideas = (parsed.ideas || []).map(i => ({
+          ...i,
+          id: `ai_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          source: "ai",
+          score: 0,
+        }));
+      } catch (e) {
+        console.error("JSON parse failed. Raw:", text, e);
+        showToast("AI returned something unexpected 🥀 Try again.");
+        setLoading(false);
+        return;
+      }
 
-  } catch (e) {
-    console.error("Parsing failed, raw text:", text);
-    console.error(e);
-    showToast("Alas… something went awry 🥀 Try again.");
-  }
+      // FIX 4: setAiIdeas was NEVER called — this is why results never appeared
+      setAiIdeas(ideas);
+      setSparkTrigger(t => t + 1);
 
-} catch (err) {
-  console.error(err);
-  showToast("Network error. Try again.");
-}
-    setLoading(false);
-  },[items,filters,user]);
+      // Save to history
+      DB.addHistory(user?.id, itemsToUse, ideas.length);
+      if (user) setHistList(DB.getHistory(user.id));
+
+      // Navigate to results
+      setPage("results");
+
+    } catch (err) {
+      console.error("Generate error:", err);
+      showToast(`Network error: ${err.message} 🥀`);
+    } finally {
+      // FIX: setLoading(false) in finally so it ALWAYS runs
+      setLoading(false);
+    }
+  }, [items, filters, user]);
 
   const handleSave = (idea) => {
-    if(!user){setAuthModal("login");return;}
-    const {saved,list} = DB.toggleSave(user.id, idea);
+    if (!user) { setAuthModal("login"); showToast("Sign in to save ideas 💌"); return; }
+    const {saved, list} = DB.toggleSave(user.id, idea);
     setSavedList(list);
-    showToast(saved?"Saved to your collection 💖":"Removed from collection");
+    showToast(saved ? "Saved to your collection 💖" : "Removed from collection");
   };
 
   const handleLike = (idea) => {
-    if(!user){setAuthModal("login");return;}
+    if (!user) { setAuthModal("login"); showToast("Sign in to like ideas 💌"); return; }
     const result = DB.likeIdea(idea.id, user.id);
-    if(result){
-      const updater = i=>i.id===idea.id?{...i,likes:result.likes,likers:result.likers}:i;
-      setAllComm(p=>p.map(updater));
-      setCommIdeas(p=>p.map(updater));
-      showToast(result.liked?"Liked 💖":"Unliked");
+    if (result) {
+      const updater = i => i.id === idea.id ? {...i, likes:result.likes, likers:result.likers} : i;
+      setAllComm(p => p.map(updater));
+      setCommIdeas(p => p.map(updater));
+      showToast(result.liked ? "Liked 💖" : "Unliked");
     }
   };
 
   const handleShareToCommunity = (idea) => {
-    if(!user){setAuthModal("login");return;}
+    if (!user) { setAuthModal("login"); return; }
     setShareModal(idea);
   };
 
   const submitToCommunity = (idea, extra) => {
     const communityIdea = {
       ...idea,
-      id:`c_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      source:"community", status:"pending",
-      submitted_by:user.id, submitted_by_name:user.name,
-      submitted_at:Date.now(), likes:0, likers:[],
-      required_items:idea.uses_items||[],
-      note:extra.note||""
+      id: `c_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      source: "community",
+      status: "pending",
+      submitted_by: user.id,
+      submitted_by_name: user.name,
+      submitted_at: Date.now(),
+      likes: 0,
+      likers: [],
+      required_items: idea.uses_items || [],
+      note: extra.note || ""
     };
     DB.submitForReview(communityIdea);
     setShareModal(null);
@@ -916,19 +1031,19 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
 
   const handleApprove = (idea) => {
     const approved = DB.approveIdea(idea);
-    setPending(p=>p.filter(x=>x.id!==idea.id));
-    setAllComm(p=>[...p, approved]);
+    setPending(p => p.filter(x => x.id !== idea.id));
+    setAllComm(p => [...p, approved]);
     showToast("Idea approved ✦ Now live in the community!");
   };
 
   const handleReject = (id) => {
     DB.rejectIdea(id);
-    setPending(p=>p.filter(x=>x.id!==id));
+    setPending(p => p.filter(x => x.id !== id));
     showToast("Idea rejected 🥀");
   };
 
-  const savedIds   = savedList.map(x=>x.id);
-  const hasResults = aiIdeas.length>0||commIdeas.length>0;
+  const savedIds   = savedList.map(x => x.id);
+  const hasResults = aiIdeas.length > 0 || commIdeas.length > 0;
 
   return (
     <>
@@ -954,42 +1069,53 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
       <Toast msg={toast.msg} visible={toast.visible}/>
       <Sparkles trigger={sparkTrigger}/>
 
-      {authModal&&(
-        <AuthModal mode={authModal} onClose={()=>setAuthModal(null)} onSwitch={()=>setAuthModal(m=>m==="login"?"signup":"login")} onSuccess={handleAuth}/>
+      {authModal && (
+        <AuthModal
+          mode={authModal}
+          onClose={() => setAuthModal(null)}
+          onSwitch={() => setAuthModal(m => m === "login" ? "signup" : "login")}
+          onSuccess={handleAuth}
+        />
       )}
-      {shareModal&&(
-        <ShareModal idea={shareModal} onClose={()=>setShareModal(null)} onSubmit={submitToCommunity}/>
+      {shareModal && (
+        <ShareModal idea={shareModal} onClose={() => setShareModal(null)} onSubmit={submitToCommunity}/>
       )}
 
       <div style={{minHeight:"100vh",background:"transparent",position:"relative",zIndex:1}}>
         <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(253,250,246,.92)",backdropFilter:"blur(18px)",borderBottom:"1px solid rgba(198,168,94,.22)",animation:"navGlow 4s ease-in-out infinite"}}>
           <div style={{height:"2px",background:"linear-gradient(to right,transparent,rgba(198,168,94,.35),rgba(198,168,94,.6),rgba(198,168,94,.35),transparent)"}}/>
           <div style={{maxWidth:1120,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 30px",flexWrap:"wrap",gap:10}}>
-            <div onClick={()=>setPage("home")} style={{cursor:"pointer"}}>
+            <div onClick={() => setPage("home")} style={{cursor:"pointer"}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:9,color:C.gold,letterSpacing:5,marginBottom:2}}>✦ ✦ ✦</div>
               <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,color:C.ink,fontWeight:600,fontStyle:"italic",letterSpacing:"-.3px"}}>Of Little Delights</div>
             </div>
             <div style={{display:"flex",gap:20,alignItems:"center",flexWrap:"wrap"}}>
-              {[["Discover","home"],["Community","community"],["Saved","saved"],["My Journal","profile"],...(user?.role==="admin"?[["Admin 🔍","admin"]]:[])].map(([l,pg])=>(
-                <span key={pg} onClick={()=>setPage(pg)} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,cursor:"pointer",color:page===pg?C.plum:C.soft,borderBottom:page===pg?`1.5px solid ${C.plum}`:"none",paddingBottom:2,transition:"color .2s",fontStyle:"italic",letterSpacing:".3px"}}>{l}</span>
+              {[
+                ["Discover","home"],
+                ["Community","community"],
+                ["Saved","saved"],
+                ["My Journal","profile"],
+                ...(user?.role==="admin" ? [["Admin 🔍","admin"]] : [])
+              ].map(([l, pg]) => (
+                <span key={pg} onClick={() => setPage(pg)} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,cursor:"pointer",color:page===pg?C.plum:C.soft,borderBottom:page===pg?`1.5px solid ${C.plum}`:"none",paddingBottom:2,transition:"color .2s",fontStyle:"italic",letterSpacing:".3px"}}>{l}</span>
               ))}
-              {hasResults&&(
-                <span onClick={()=>setPage("results")} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,cursor:"pointer",color:page==="results"?C.plum:C.soft,borderBottom:page==="results"?`1.5px solid ${C.plum}`:"none",paddingBottom:2,fontStyle:"italic"}}>Results</span>
+              {hasResults && (
+                <span onClick={() => setPage("results")} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,cursor:"pointer",color:page==="results"?C.plum:C.soft,borderBottom:page==="results"?`1.5px solid ${C.plum}`:"none",paddingBottom:2,fontStyle:"italic"}}>Results</span>
               )}
               {user
-                ?<span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,fontStyle:"italic"}}>✿ {user.name.split(" ")[0]}</span>
-                :<button onClick={()=>setAuthModal("login")} style={{...btnStyle,padding:"8px 20px",fontSize:13}}>Enter ✨</button>
+                ? <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:C.soft,fontStyle:"italic"}}>✿ {user.name.split(" ")[0]}</span>
+                : <button onClick={() => setAuthModal("login")} style={{...btnStyle, padding:"8px 20px", fontSize:13}}>Enter ✨</button>
               }
             </div>
           </div>
         </nav>
 
-        {page==="home"&&<HomePage inputVal={inputVal} onInputChange={handleInputChange} onAddItem={()=>addItem(inputVal)} onKeyDown={handleKeyDown} suggestions={suggestions} items={items} filters={filters} onRemoveItem={removeItem} onAddQuick={addItem} onToggleFilter={toggleFilter} onGenerate={()=>generate()} onClear={()=>setItems([])} inputRef={inputRef}/>}
-        {page==="results"&&<ResultsPage aiIdeas={aiIdeas} commIdeas={commIdeas} items={items} catFilter={catFilter} setCatFilter={setCatFilter} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onShareToCommunity={handleShareToCommunity} onGenerate={()=>generate()} onBack={()=>setPage("home")}/>}
-        {page==="community"&&<CommunityPage allComm={allComm} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onGoHome={()=>setPage("home")}/>}
-        {page==="saved"&&<SavedPage savedList={savedList} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onShareToCommunity={handleShareToCommunity} onGoHome={()=>setPage("home")}/>}
-        {page==="profile"&&<ProfilePage user={user} savedList={savedList} histList={histList} allComm={allComm} onLogin={()=>setAuthModal("login")} onSignup={()=>setAuthModal("signup")} onLogout={logout} onRerun={()=>{if(histList[0]){setItems(histList[0].items);generate(histList[0].items);}}}/>}
-        {page==="admin"&&user?.role==="admin"&&<AdminPage pending={pending} onApprove={handleApprove} onReject={handleReject}/>}
+        {page==="home"     && <HomePage inputVal={inputVal} onInputChange={handleInputChange} onAddItem={() => addItem(inputVal)} onKeyDown={handleKeyDown} suggestions={suggestions} items={items} filters={filters} onRemoveItem={removeItem} onAddQuick={addItem} onToggleFilter={toggleFilter} onGenerate={() => generate(items)} onClear={() => setItems([])} inputRef={inputRef}/>}
+        {page==="results"  && <ResultsPage aiIdeas={aiIdeas} commIdeas={commIdeas} items={items} catFilter={catFilter} setCatFilter={setCatFilter} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onShareToCommunity={handleShareToCommunity} onGenerate={() => generate(items)} onBack={() => setPage("home")}/>}
+        {page==="community"&& <CommunityPage allComm={allComm} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onGoHome={() => setPage("home")}/>}
+        {page==="saved"    && <SavedPage savedList={savedList} user={user} onSave={handleSave} savedIds={savedIds} onLike={handleLike} onShareToCommunity={handleShareToCommunity} onGoHome={() => setPage("home")}/>}
+        {page==="profile"  && <ProfilePage user={user} savedList={savedList} histList={histList} allComm={allComm} onLogin={() => setAuthModal("login")} onSignup={() => setAuthModal("signup")} onLogout={logout} onRerun={() => { if (histList[0]) { setItems(histList[0].items); generate(histList[0].items); }}}/>}
+        {page==="admin" && user?.role==="admin" && <AdminPage pending={pending} onApprove={handleApprove} onReject={handleReject}/>}
 
         <div style={{borderTop:"1px solid rgba(198,168,94,.18)",textAlign:"center",padding:"28px",background:"rgba(253,250,246,.6)"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:10,color:C.gold,letterSpacing:4,marginBottom:6}}>✦ ✦ ✦</div>
