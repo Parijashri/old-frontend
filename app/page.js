@@ -840,7 +840,9 @@ Respond ONLY with valid JSON (no markdown fences, no extra text):
         @keyframes chipIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
         @keyframes sway{0%,100%{transform:rotate(-9deg)}50%{transform:rotate(9deg)}}
         @keyframes cardIn{from{opacity:0;transform:translateY(18px) rotate(-.4deg)}to{opacity:1;transform:none}}
-        input,textarea{transition:border-color .2s,box-shadow .2s;}
+        @keyframes sparkleRise{0%{opacity:0;transform:translateY(0) scale(.5)}30%
+        {opacity:1;transform:translateY(-18px) scale(1.1)}100%
+        {opacity:0;transform:translateY(-55px) scale(.7)}}input,textarea{transition:border-color .2s,box-shadow .2s;}
         input:focus,textarea:focus{border-color:#D8A7A7!important;box-shadow:0 0 0 3px rgba(216,167,167,.2)!important;outline:none;}
         button:not([disabled]):hover{transform:translateY(-2px)!important;box-shadow:0 6px 20px rgba(125,90,123,.2)!important;}
         @media(max-width:600px){h1{font-size:27px!important;}nav{padding:13px 16px!important;}}
