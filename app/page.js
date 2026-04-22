@@ -134,16 +134,26 @@ const inpStyle = {
 };
 
 const FloralBg = () => (
-  <svg style={{position:"fixed",inset:0,width:"100%",height:"100%",pointerEvents:"none",opacity:.04,zIndex:0}}>
-    <defs><pattern id="fp" width="100" height="100" patternUnits="userSpaceOnUse">
-      <text x="8"  y="28" fontSize="16" fill={C.plum}>✿</text>
-      <text x="55" y="60" fontSize="10" fill={C.gold}>❀</text>
-      <text x="80" y="18" fontSize="12" fill={C.rose}>✦</text>
-      <text x="20" y="88" fontSize="8"  fill={C.plum}>❋</text>
-      <text x="68" y="90" fontSize="14" fill={C.gold}>✿</text>
-    </pattern></defs>
-    <rect width="100%" height="100%" fill="url(#fp)"/>
-  </svg>
+  <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>
+    {/* Base warm ivory gradient */}
+    <div style={{position:"absolute",inset:0,background:"linear-gradient(160deg,#fdfaf6 0%,#f8f2eb 40%,#f5eef8 70%,#f0f4ee 100%)"}}/>
+    {/* Soft radial glow top left */}
+    <div style={{position:"absolute",top:"-10%",left:"-5%",width:"50vw",height:"50vw",borderRadius:"50%",background:"radial-gradient(circle,rgba(198,168,94,.07) 0%,transparent 70%)"}}/>
+    {/* Soft radial glow bottom right */}
+    <div style={{position:"absolute",bottom:"-10%",right:"-5%",width:"55vw",height:"55vw",borderRadius:"50%",background:"radial-gradient(circle,rgba(214,167,167,.08) 0%,transparent 70%)"}}/>
+    {/* Subtle SVG pattern overlay */}
+    <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:.03}}>
+      <defs><pattern id="fp" width="120" height="120" patternUnits="userSpaceOnUse">
+        <text x="10" y="30"  fontSize="18" fill={C.plum}>✿</text>
+        <text x="65" y="70"  fontSize="11" fill={C.gold}>❀</text>
+        <text x="90" y="20"  fontSize="13" fill={C.rose}>✦</text>
+        <text x="25" y="100" fontSize="9"  fill={C.plum}>❋</text>
+        <text x="75" y="105" fontSize="15" fill={C.gold}>✿</text>
+        <text x="45" y="55"  fontSize="7"  fill={C.rose}>·</text>
+      </pattern></defs>
+      <rect width="100%" height="100%" fill="url(#fp)"/>
+    </svg>
+  </div>
 );
 
 const Chip = ({label,onRemove,bg}) => (
