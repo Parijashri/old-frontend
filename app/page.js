@@ -863,7 +863,7 @@ const text = data.result;
     let ideas = [];
 
 try {
-  const clean = text.replace(/```json|```/g,"").trim();
+  const clean = text.replace(/```json|```/g, "").trim();
   const parsed = JSON.parse(clean);
 
   ideas = (parsed.ideas || []).map(i => ({
@@ -874,12 +874,8 @@ try {
 
 } catch (e) {
   console.error("Parsing failed, raw text:", text);
-}
-catch(e){
-      console.error(e);
-      showToast("Alas… something went awry 🥀 Try again.");
-    }} catch (err) {
-  console.error(err);
+  console.error(e);
+  showToast("Alas... something went awry. Try again.");
 }
     setLoading(false);
   },[items,filters,user]);
