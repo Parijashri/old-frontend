@@ -294,7 +294,42 @@ const ShareModal = ({idea,onClose,onSubmit}) => {
     </div>
   );
 };
-
+// ─────────────────────────────────────────────────────────────────
+//  SPARKLES  — triggers once when results appear
+// ─────────────────────────────────────────────────────────────────
+const Sparkles = ({trigger}) => {
+  const [particles,setParticles] = useState([]);
+  useEffect(()=>{
+    if(!trigger)return;
+    const pts = Array.from({length:10},(_,i)=>({
+      id:i,
+      x: 20 + Math.random()*60,
+      y: 20 + Math.random()*60,
+      size: 4 + Math.random()*5,
+      delay: Math.random()*0.4,
+      dur: 0.8 + Math.random()*0.6,
+      char: ["✦","✧","·","❀","✿"][Math.floor(Math.random()*5)],
+      color:["#C6A85E","#D8A7A7","#E6DDF2","#c6a85e88"][Math.floor(Math.random()*4)],
+    }));
+    setParticles(pts);
+    const t = setTimeout(()=>setParticles([]),1800);
+    return()=>clearTimeout(t);
+  },[trigger]);
+  if(!particles.length)return null;
+  return(
+    <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:200,overflow:"hidden"}}>
+      {particles.map(p=>(
+        <div key={p.id} style={{
+          position:"absolute",
+          left:`${p.x}%`,top:`${p.y}%`,
+          fontSize:p.size,color:p.color,
+          animation:`sparkleRise ${p.dur}s ease-out ${p.delay}s both`,
+          fontFamily:"serif",lineHeight:1,
+        }}>{p.char}</div>
+      ))}
+    </div>
+  );
+};
 // ─────────────────────────────────────────────────────────────────
 //  LOADER  (outside App)
 // ─────────────────────────────────────────────────────────────────
