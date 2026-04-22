@@ -687,6 +687,7 @@ export default function App() {
   const [loading,     setLoading]     = useState(false);
   const [toast,       setToast]       = useState({msg:"",visible:false});
   const [shareModal,  setShareModal]  = useState(null);
+  const [sparkTrigger,setSparkTrigger]= useState(0);
   const inputRef = useRef();
 
   useEffect(()=>{
